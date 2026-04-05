@@ -1,0 +1,104 @@
+{
+  "projectType": "saas",
+  "projectName": "Typeflux",
+  "projectDescription": "A macOS menu bar voice input app that lets you press a hotkey, speak naturally, and have your transcribed text instantly inserted into any focused app.",
+  "theme": "almond",
+  "primaryColor": "#f41c7c",
+  "lightColor": "#1c1434",
+  "darkColor": "#fc7cbc",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation",
+              "permissions"
+            ]
+          },
+          {
+            "group": "Core Workflows",
+            "pages": [
+              "workflows/dictation",
+              "workflows/voice-editing",
+              "workflows/ask-selection",
+              "workflows/hotkeys"
+            ]
+          },
+          {
+            "group": "Speech & AI Providers",
+            "pages": [
+              "providers/overview",
+              "providers/speech-to-text",
+              "providers/llm-backends",
+              "providers/local-models"
+            ]
+          },
+          {
+            "group": "Settings & Customization",
+            "pages": [
+              "settings/overview",
+              "settings/personas",
+              "settings/mcp-servers"
+            ]
+          },
+          {
+            "group": "History & Data",
+            "pages": [
+              "history/overview",
+              "history/data-storage"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Developer Guide",
+        "groups": [
+          {
+            "group": "Contributing",
+            "pages": [
+              "dev/architecture",
+              "dev/building",
+              "dev/contributing"
+            ]
+          },
+          {
+            "group": "Agent Framework",
+            "pages": [
+              "dev/agent-framework",
+              "dev/mcp-integration"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Hold-to-talk hotkey workflow with instant text insertion into any focused app",
+    "Streaming transcription preview with floating overlay UI",
+    "Voice-driven text rewriting and editing of selected text",
+    "Multiple STT backends: Apple Speech, Whisper API, local models (WhisperKit, SenseVoice, Qwen3), Alibaba Cloud, Doubao, Groq",
+    "OpenAI-compatible and Ollama LLM backends for rewrite and ask-selection workflows",
+    "Fully local, privacy-first pipeline with optional cloud providers",
+    "Configurable personas for custom rewriting styles",
+    "MCP (Model Context Protocol) tool integration for the agent framework",
+    "Session history with retry support and audio playback",
+    "Persona picker overlay with hotkey-driven selection"
+  ],
+  "publicApiSurface": [
+    "STTProvider enum: freeModel, whisperAPI, appleSpeech, localModel, multimodalLLM, aliCloud, doubaoRealtime, groq",
+    "LLMProvider enum: openAICompatible, ollama",
+    "LocalSTTModel enum: whisperLocal, senseVoiceSmall, qwen3ASR",
+    "WorkflowController: start(), stop(), retry(record:), cancelRecording()",
+    "Transcriber protocol: transcribe(audioFile:), transcribeStream(audioFile:onUpdate:)",
+    "HistoryStore protocol: save(record:), list(), delete(id:), purge(olderThanDays:), exportMarkdown()",
+    "AgentTool protocol: definition, execute(arguments:)",
+    "MCPClient protocol: connect(), disconnect(), listTools(), callTool(name:arguments:)",
+    "AgentLoop.run(messages:streamHandler:)",
+    "PersonaProfile: id, name, prompt, kind"
+  ]
+}

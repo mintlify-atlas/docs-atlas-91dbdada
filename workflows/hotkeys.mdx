@@ -1,0 +1,139 @@
+---
+title: "Hotkeys"
+description: "Configure the keyboard shortcuts that trigger Typeflux"
+---
+
+Typeflux registers three global hotkeys that work system-wide — in any app, at any time — without switching focus to Typeflux itself.
+
+<Note>
+  Hotkeys are registered using `CGEventTap`, which intercepts key events at the system level. This means they work even when Typeflux is not the frontmost application. The Accessibility permission is required for this to function.
+</Note>
+
+## The three hotkeys
+
+<AccordionGroup>
+  <Accordion title="Activation hotkey" icon="microphone" defaultOpen={true}>
+    **Default: Fn**
+
+    The activation hotkey is the primary trigger for both [dictation](/workflows/dictation) and [voice editing](/workflows/voice-editing).
+
+    **Hold-to-talk behavior**
+
+    Hold the hotkey to record, release to finish. This is the fastest interaction for short dictation:
+
+    - Press and hold → recording begins
+    - Speak → audio is captured
+    - Release → recording stops, transcription and text injection begin
+
+    **Tap-to-lock behavior**
+
+    If you release the activation hotkey within **0.22 seconds** of pressing it, Typeflux treats the press as a tap and locks recording on rather than stopping. In locked mode:
+
+    - Recording continues without holding the key
+    - The overlay shows a locked indicator
+    - Press the activation hotkey again (or click Confirm in the overlay) to finish
+
+    Use locked mode for longer dictation sessions where holding a key is uncomfortable.
+
+    **Voice editing**
+
+    If text is selected when you activate the hotkey, Typeflux enters voice editing mode automatically. Speak an instruction and release to rewrite the selection with AI.
+  </Accordion>
+
+  <Accordion title="Ask hotkey" icon="circle-question">
+    **Default: Fn Space**
+
+    The ask hotkey triggers [Ask Selection](/workflows/ask-selection). Unlike the activation hotkey, the ask hotkey always starts in **locked recording mode** — press once to begin recording, press again to finish. You do not need to hold it.
+
+    This design suits the longer, conversational phrasing typical of questions ("Can you explain what this paragraph is saying?") where hold-to-talk would be awkward.
+
+    When the ask hotkey is pressed:
+
+    - Locked recording begins immediately
+    - Speak your question or instruction
+    - Press the ask hotkey again to stop recording and submit
+
+    If text is selected, the LLM receives both the selection and your spoken question. If nothing is selected, the LLM answers the question directly.
+  </Accordion>
+
+  <Accordion title="Persona picker hotkey" icon="user">
+    **Default: ⌘⌥ P**
+
+    The persona picker hotkey opens a floating overlay listing your configured personas. From there you can switch the active persona without opening Settings.
+
+    When pressed:
+
+    - If text is selected and the persona hotkey is configured to apply to selections, Typeflux immediately rewrites the selection using the chosen persona — without recording.
+    - If nothing is selected, the picker opens as a persona switcher to change which persona is active for future sessions.
+
+    Navigate the picker with the arrow keys and press Return to confirm, or press Escape to dismiss without changing.
+  </Accordion>
+</AccordionGroup>
+
+## Configuring hotkeys
+
+Open **Settings → Hotkeys** to change any of the three bindings.
+
+<Steps>
+  <Step title="Open Settings">
+    Click the Typeflux icon in the menu bar and select **Settings**, then navigate to the **Hotkeys** section.
+  </Step>
+  <Step title="Click the hotkey field you want to change">
+    The field enters recording mode and waits for your new key combination.
+  </Step>
+  <Step title="Press your new key combination">
+    Typeflux records the key code and modifier flags (Fn, Control, Option, Shift, Command) from the combination you press.
+  </Step>
+  <Step title="Changes take effect immediately">
+    No restart is needed. The new binding is active as soon as you save.
+  </Step>
+</Steps>
+
+## Special key support
+
+Typeflux supports modifier-only triggers in addition to standard key combinations:
+
+| Binding | Behavior |
+|---|---|
+| Fn alone | Triggers on the bare Function key, with no other modifiers |
+| Right Command alone | Triggers on the right Command key specifically, separate from left Command |
+| Fn + key | Any key combined with the Function modifier |
+| Standard modifiers | Any combination of ⌃ Control, ⌥ Option, ⇧ Shift, ⌘ Command with a regular key |
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Hotkeys stop responding">
+    The most common cause is a missing or revoked Accessibility permission.
+
+    1. Open **System Settings → Privacy & Security → Accessibility**
+    2. Check that Typeflux is listed and its toggle is on
+    3. If Typeflux is not listed, re-grant the permission from the app's onboarding flow or add it manually
+
+    After re-granting, you may need to restart Typeflux for the event tap to re-register.
+  </Accordion>
+
+  <Accordion title="Another app captures the hotkey first">
+    If a different app has registered the same global shortcut, that app will intercept the key event before Typeflux sees it. Choose a combination not used by other apps.
+
+    Right Command (`keyCode 54`) and bare Fn (`keyCode 63`) are rarely claimed by other software and make reliable activation hotkeys.
+  </Accordion>
+
+  <Accordion title="Hotkey works but nothing happens">
+    If the hotkey is captured but recording does not start, check that the Microphone permission is granted:
+
+    1. Open **System Settings → Privacy & Security → Microphone**
+    2. Verify Typeflux is enabled
+  </Accordion>
+</AccordionGroup>
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Dictation" icon="microphone" href="/workflows/dictation">
+    Hold-to-talk and tap-to-lock dictation in detail.
+  </Card>
+  <Card title="Ask Selection" icon="circle-question" href="/workflows/ask-selection">
+    The ask hotkey workflow for questions and voice editing.
+  </Card>
+</CardGroup>

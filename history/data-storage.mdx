@@ -1,0 +1,174 @@
+---
+title: 'Data storage'
+description: 'Where Typeflux stores your data and how to manage it'
+---
+
+Typeflux stores all data locally on your Mac. Nothing is sent to Typeflux servers. There is no telemetry, no analytics, and no cloud sync.
+
+## Storage locations
+
+| Data | Engine | Path |
+|---|---|---|
+| Session history | SQLite | `~/Library/Application Support/Typeflux/history.sqlite` |
+| Audio recordings | File system | `~/Library/Application Support/Typeflux/audio/{uuid}.wav` |
+| App settings & API keys | UserDefaults | `~/Library/Preferences/com.typeflux.plist` |
+| Temporary recordings | File system | `~/tmp/typeflux/{uuid}.wav` |
+
+Temporary recordings are created when you start speaking and are moved to the persistent audio directory once the session is saved. If Typeflux quits unexpectedly during recording, a temporary file may remain in `~/tmp/typeflux/` and can be deleted safely.
+
+## SQLite database schema
+
+Session history is stored in a single SQLite table using Write-Ahead Logging (WAL) mode for reliable concurrent access. The full schema is:
+
+```sql
+CREATE TABLE IF NOT EXISTS history_records (
+    id                        TEXT PRIMARY KEY NOT NULL,  -- UUID
+    date                      REAL NOT NULL,              -- Unix timestamp
+    mode                      TEXT NOT NULL,              -- dictation | personaRewrite | editSelection | askAnswer
+    audio_file_path           TEXT,
+    transcript_text           TEXT,
+    persona_prompt            TEXT,
+    persona_result_text       TEXT,
+    selection_original_text   TEXT,
+    selection_edited_text     TEXT,
+    recording_duration_seconds REAL,
+    pipeline_timing_json      TEXT,                       -- JSON blob of per-stage timestamps
+    pipeline_stats_json       TEXT,                       -- JSON blob of derived timing metrics
+    error_message             TEXT,
+    apply_message             TEXT,
+    recording_status          TEXT NOT NULL,
+    transcription_status      TEXT NOT NULL,
+    processing_status         TEXT NOT NULL,
+    apply_status              TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_history_records_date
+    ON history_records(date DESC);
+```
+
+Records are upserted on save — inserting new sessions and updating in-progress ones as each pipeline step completes.
+
+<Accordion title="Pipeline timing fields">
+  Two JSON blobs track how long each stage of the pipeline took:
+
+  - `pipeline_timing_json` — raw timestamps captured at runtime: when recording stopped, when the audio file was ready, when STT started and finished, when LLM processing started and finished, and when the result was applied.
+  - `pipeline_stats_json` — derived durations in milliseconds: stop-to-audio-ready, STT duration, stop-to-STT-completed, transcript-to-LLM-start, LLM duration, apply duration, and end-to-end.
+
+  These fields are populated for sessions recorded on recent versions of Typeflux and are included in Markdown exports under a **Pipeline Stats** section.
+</Accordion>
+
+## Retention and automatic deletion
+
+Typeflux purges sessions older than the configured retention period each time the app starts. Audio files are deleted alongside their session records.
+
+<Tip>
+  Change the retention policy under **Settings → General → History**. The default is **1 Week**. Setting it to **Forever** disables automatic deletion entirely, which is useful if you want a permanent transcript log.
+</Tip>
+
+The purge query used internally:
+
+```sql
+DELETE FROM history_records WHERE date < ?;
+```
+
+The cutoff is calculated as `now − (days × 86400 seconds)`. After deleting database rows, Typeflux removes the corresponding `.wav` files from the audio directory.
+
+## Exporting history
+
+Export all sessions to a Markdown file from **menu bar → History → Export**.
+
+The file is written to:
+
+```
+~/Library/Application Support/Typeflux/history-{unix_timestamp}.md
+```
+
+Each session in the export includes:
+
+<Tabs>
+  <Tab title="Always included">
+    - Session date (ISO 8601)
+    - Mode (`dictation`, `personaRewrite`, `editSelection`, `askAnswer`)
+    - Status for each step: Recording, Transcription, Processing, Apply
+    - Audio file path (if present)
+  </Tab>
+  <Tab title="Included when present">
+    - **Transcript** — raw STT output
+    - **Persona Result** — LLM rewrite output
+    - **Selected Text** — original selection for edit-selection sessions
+    - **Selection Result** — edited text for edit-selection sessions
+    - **Pipeline Stats** — per-stage timing in milliseconds
+    - **Error** — error message if any step failed
+  </Tab>
+</Tabs>
+
+## Clearing data
+
+To delete all history records and audio files at once, open the history panel and select **Clear All**. This runs:
+
+```sql
+DELETE FROM history_records;
+```
+
+All associated audio files in `~/Library/Application Support/Typeflux/audio/` are also removed.
+
+To delete a single session, open it in the history panel and click **Delete**. The session row and its `.wav` file are both removed immediately.
+
+## API keys and settings
+
+API keys for STT and LLM providers are stored in UserDefaults alongside other app settings.
+
+<Note>
+  API keys are stored in plain text in `~/Library/Preferences/com.typeflux.plist`. They are not encrypted and are not synced via iCloud. Access is protected only by standard macOS file permissions. If you are concerned about key exposure, consider using provider-side access controls such as scoped API keys or spend limits.
+</Note>
+
+Settings stored in UserDefaults include:
+
+<AccordionGroup>
+  <Accordion title="STT provider settings">
+    | Key | Description |
+    |---|---|
+    | `stt.provider` | Active STT provider |
+    | `stt.whisper.apiKey` | Whisper API key |
+    | `stt.whisper.baseURL` | Whisper base URL |
+    | `stt.whisper.model` | Whisper model name |
+    | `stt.multimodal.apiKey` | Multimodal LLM API key |
+    | `stt.alicloud.apiKey` | AliCloud API key |
+    | `stt.doubao.appID` | Doubao app ID |
+    | `stt.doubao.accessToken` | Doubao access token |
+    | `stt.appleSpeech.enabled` | Apple Speech fallback toggle |
+  </Accordion>
+  <Accordion title="LLM provider settings">
+    | Key | Description |
+    |---|---|
+    | `llm.provider` | Active LLM provider |
+    | `llm.apiKey` | API key for the active remote provider |
+    | `llm.baseURL` | Base URL for the active provider |
+    | `llm.model` | Model name |
+    | `llm.ollama.baseURL` | Ollama base URL |
+    | `llm.ollama.model` | Ollama model name |
+  </Accordion>
+  <Accordion title="History and general settings">
+    | Key | Description |
+    |---|---|
+    | `history.retentionPolicy` | `never` / `oneDay` / `oneWeek` / `oneMonth` / `forever` |
+    | `ui.language` | `en` or `zh` |
+    | `ui.appearance` | `system`, `light`, or `dark` |
+    | `audio.input.preferredMicrophoneID` | Saved microphone device ID |
+    | `audio.recording.muteSystemOutput` | Mute system audio during recording |
+    | `audio.soundEffects.enabled` | Recording start/stop sound effects |
+  </Accordion>
+</AccordionGroup>
+
+## Usage statistics
+
+Aggregate statistics (total sessions, character counts, timing) are stored in UserDefaults under `stats.*` keys and are derived from local history records. They are never sent off-device.
+
+If the statistics calculation algorithm is updated in a new version of Typeflux, the stats are automatically recalculated from your full local history on next launch.
+
+## What is not collected
+
+- No crash reports or diagnostics are sent to Typeflux servers.
+- No usage telemetry, feature flags, or analytics are collected.
+- Audio recordings never leave your Mac except as part of a transcription API call to the STT provider you configure.
+- Transcription API calls go directly from your Mac to the provider you configure (for example, OpenAI for Whisper). Typeflux acts only as a local intermediary.

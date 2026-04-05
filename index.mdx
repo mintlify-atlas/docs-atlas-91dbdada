@@ -1,97 +1,83 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "Typeflux"
+description: "A macOS menu bar voice input app. Press a hotkey, speak naturally, and your transcribed text is instantly inserted into any focused app."
 ---
 
-## Setting up
+Typeflux lives in your macOS menu bar and turns your voice into text — right where your cursor is. Hold a hotkey, speak, release, and the result is typed into whatever app you're using. No mode-switching, no separate recording window, no copying and pasting.
 
-Get your documentation site up and running in minutes.
+Beyond plain dictation, Typeflux also lets you select existing text and rewrite it with a voice instruction, or ask questions and get answers in a floating panel.
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
-
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Get Typeflux running and transcribing in under five minutes.
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="Installation" icon="download" href="/installation">
+    Build from source or launch a development build on your Mac.
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Core Workflows" icon="microphone" href="/workflows/dictation">
+    Learn dictation, voice editing, and ask-selection modes.
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="Speech Providers" icon="wave-square" href="/providers/speech-to-text">
+    Choose a local or cloud speech-to-text backend.
   </Card>
-</Columns>
+</CardGroup>
 
-## Create beautiful pages
+## How it works
 
-Everything you need to create world-class documentation.
+<Steps>
+  <Step title="Press and hold your hotkey">
+    The default hotkey activates Typeflux. A floating overlay appears showing your audio level in real time.
+  </Step>
+  <Step title="Speak naturally">
+    Talk at a normal pace. If your provider supports streaming, you'll see a live transcription preview in the overlay.
+  </Step>
+  <Step title="Release to finish">
+    Releasing the hotkey stops the recording and begins transcription. The result is automatically inserted at your cursor.
+  </Step>
+  <Step title="Text appears in your app">
+    Typeflux uses macOS Accessibility APIs to type the text directly. The result is also copied to your clipboard as a fallback.
+  </Step>
+</Steps>
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+## What you can do
 
-## Need inspiration?
+<CardGroup cols={2}>
+  <Card title="Voice dictation" icon="keyboard" href="/workflows/dictation">
+    Speak to insert text at your cursor position in any app.
+  </Card>
+  <Card title="Voice editing" icon="pen-to-square" href="/workflows/voice-editing">
+    Select text, speak an instruction, and let Typeflux rewrite it.
+  </Card>
+  <Card title="Ask selection" icon="circle-question" href="/workflows/ask-selection">
+    Select text and ask a question — get an answer in a floating panel.
+  </Card>
+  <Card title="Personas" icon="user" href="/settings/personas">
+    Create custom rewriting styles for different contexts.
+  </Card>
+  <Card title="Local models" icon="server" href="/providers/local-models">
+    Run transcription fully on-device for privacy and offline use.
+  </Card>
+  <Card title="MCP tools" icon="plug" href="/settings/mcp-servers">
+    Connect external tool servers to the agent workflow.
+  </Card>
+</CardGroup>
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+## Permissions required
+
+Typeflux requires three macOS permissions to operate. The app guides you through granting each one on first launch.
+
+<CardGroup cols={3}>
+  <Card title="Microphone" icon="microphone">
+    Required to record audio when the hotkey is held.
+  </Card>
+  <Card title="Accessibility" icon="accessibility">
+    Required to insert text and read selected text in other apps.
+  </Card>
+  <Card title="Speech Recognition" icon="wave-square">
+    Required when using Apple Speech or Apple fallback mode.
+  </Card>
+</CardGroup>
+
+<Note>
+  All audio processing happens locally or via your own API keys. Typeflux does not send data to any Typeflux servers.
+</Note>

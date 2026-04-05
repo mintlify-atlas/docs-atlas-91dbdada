@@ -1,0 +1,118 @@
+---
+title: "Local models"
+description: "Run speech transcription entirely on your Mac with no internet required"
+---
+
+Typeflux supports three on-device speech models. After a one-time download, they run fully offline using Apple's CoreML and MLX frameworks — no audio is ever sent to an external server.
+
+## Available models
+
+<CardGroup cols={3}>
+  <Card title="WhisperKit Small" icon="wave-square">
+    Based on the WhisperKit framework. Uses Apple's CoreML to run the Whisper Small model. Cached in memory after first load so subsequent transcriptions are fast.
+  </Card>
+  <Card title="SenseVoice Small" icon="microphone">
+    A CoreML-optimized model tuned for Apple Silicon. Supports multilingual transcription and produces results quickly on M-series chips.
+  </Card>
+  <Card title="Qwen3 ASR" icon="cpu">
+    An MLX-based model from Alibaba. Optimized for Apple Silicon via the MLX framework. Suitable for multilingual use cases.
+  </Card>
+</CardGroup>
+
+## Model details
+
+| Model | Internal ID | Default model identifier | Framework |
+|---|---|---|---|
+| WhisperKit Small | `whisperLocal` | `whisperkit-small` | WhisperKit (CoreML) |
+| SenseVoice Small | `senseVoiceSmall` | `sensevoice-small-coreml` | Sherpa-ONNX (CoreML) |
+| Qwen3 ASR | `qwen3ASR` | `mlx-community/Qwen3-ASR-0.6B-bf16` | Sherpa-ONNX (MLX) |
+
+All three models are downloaded from **Hugging Face** by default. Users in mainland China can switch to **ModelScope** in Settings → Speech Recognition → Download Source.
+
+<Note>
+  Models are stored in `~/Library/Application Support/Typeflux/LocalModels/`. Each model is stored in its own subdirectory named after the model identifier. Deleting a model's directory removes it and requires a fresh download.
+</Note>
+
+## Setup
+
+<Steps>
+  <Step title="Open Settings">
+    Open Typeflux from the menu bar and go to **Settings → Speech Recognition**.
+  </Step>
+  <Step title="Select Local Model as your provider">
+    Click **Local Model** in the provider list. The local model configuration panel appears below.
+  </Step>
+  <Step title="Choose a model">
+    Select **WhisperKit Small**, **SenseVoice Small**, or **Qwen3 ASR** from the model picker.
+  </Step>
+  <Step title="Choose a download source">
+    Select **Hugging Face** (default) or **ModelScope** depending on your network. ModelScope is faster from mainland China.
+  </Step>
+  <Step title="Download the model">
+    Click **Download**. Typeflux handles the download, extraction, and verification automatically. A progress bar shows the current status.
+  </Step>
+  <Step title="Wait for the download to complete">
+    Model sizes vary. WhisperKit Small is a few hundred megabytes. SenseVoice Small and Qwen3 ASR are smaller. The progress bar reaches 100% when the model is ready.
+  </Step>
+  <Step title="Start speaking">
+    Once the download completes, the model is ready. The next recording uses the local model. No further configuration is needed.
+  </Step>
+</Steps>
+
+## Auto-setup
+
+Enable **Auto-setup** in Settings → Speech Recognition to let Typeflux download and prepare the selected model automatically on first use, without you clicking the Download button manually. If the model is already downloaded, auto-setup has no effect.
+
+## Pre-warming
+
+The WhisperKit CoreML pipeline is loaded into memory before each recording session begins. This happens while you are holding the activation hotkey and before you release it. As a result, the first transcription call after a cold start does not pay the full model-load penalty.
+
+Pre-warming runs only for the WhisperKit model. SenseVoice and Qwen3 ASR start fresh on each transcription call.
+
+<Tip>
+  If you notice a delay on the very first transcription after opening Typeflux, this is the WhisperKit pipeline initializing. Subsequent recordings are faster.
+</Tip>
+
+## Apple Speech fallback
+
+Enable **Apple Speech Fallback** in Settings → Speech Recognition to fall back to Apple Speech if the local model returns an error. This is useful if the model download is incomplete or the model encounters an unsupported audio format.
+
+## Model validation
+
+After download, Typeflux validates that the required model files are present before marking a model as ready:
+
+- **WhisperKit**: checks for `MelSpectrogram`, `AudioEncoder`, and `TextDecoder` artifacts (`.mlmodelc` or `.mlpackage` directories).
+- **SenseVoice and Qwen3 ASR**: verifies the expected Sherpa-ONNX file layout.
+
+If validation fails, the model is treated as not downloaded and Typeflux will offer to re-download it.
+
+## Switching models
+
+You can switch between local models at any time in Settings. When you switch:
+
+1. Typeflux loads the new model on the next transcription call.
+2. The previously loaded WhisperKit pipeline is evicted from the in-memory cache to free memory.
+3. If the new model has not been downloaded, you are prompted to download it (or auto-setup handles it if enabled).
+
+## Apple Silicon optimization
+
+All three local models are optimized for Apple Silicon:
+
+- **WhisperKit** uses CoreML with the Neural Engine where possible.
+- **SenseVoice** is distributed as a CoreML model package.
+- **Qwen3 ASR** uses the MLX framework, which is designed specifically for Apple Silicon memory architecture.
+
+<Warning>
+  Local models may be slower on Intel Macs. WhisperKit falls back to the CPU on Intel hardware. SenseVoice and Qwen3 ASR rely on Sherpa-ONNX and MLX respectively, which have reduced performance without the Apple Neural Engine.
+</Warning>
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Speech-to-Text providers" icon="microphone" href="/providers/speech-to-text">
+    Compare all STT provider options including cloud and hybrid choices.
+  </Card>
+  <Card title="Providers overview" icon="grid" href="/providers/overview">
+    Understand the full provider system and privacy tradeoffs.
+  </Card>
+</CardGroup>

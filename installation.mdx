@@ -1,0 +1,96 @@
+---
+title: "Installation"
+description: "Build Typeflux from source and install it on your Mac"
+---
+
+Typeflux is distributed as source code and built locally using Swift Package Manager.
+
+## Requirements
+
+| Requirement | Details |
+|---|---|
+| macOS | 13 (Ventura) or later |
+| Swift toolchain | Xcode with Swift 5.9+ |
+| Microphone | Built-in or external |
+| Accessibility permission | Required for text injection |
+| Code signing identity | Optional — improves permission stability across rebuilds |
+
+<Info>
+  Some providers have additional requirements: API keys and endpoint URLs for remote STT or LLM services, and local model files for local speech or local LLM workflows.
+</Info>
+
+## Why Typeflux runs as an .app bundle
+
+Typeflux relies on macOS capabilities — menu bar behavior, privacy permissions, and the Accessibility API — that require a proper app bundle identity. A raw command-line binary does not satisfy macOS's Transparency, Consent, and Control (TCC) requirements for these APIs.
+
+The build scripts package the compiled binary into `~/Applications/Typeflux Dev.app` before launch and keep that path stable. A stable path means macOS does not re-prompt for permissions every time you rebuild. If the bundle's signing identity changes, macOS treats it as a different app and previously granted permissions may be revoked.
+
+## Build commands
+
+<CodeGroup>
+
+```bash Compile
+swift build
+```
+
+```bash Run tests
+swift test
+```
+
+```bash Build, bundle, and launch
+make run
+```
+
+```bash Launch with logs attached
+make dev
+```
+
+</CodeGroup>
+
+### What each command does
+
+**`swift build`** compiles the `Typeflux` executable target and its dependencies. The output binary lands at `.build/debug/Typeflux`. Use this to verify the code compiles without launching the app.
+
+**`swift test`** (also available as `make test`) runs the full test suite in `Tests/TypefluxTests`. Run this after logic changes before launching.
+
+**`make run`** invokes `scripts/run_dev_app.sh`, which:
+
+1. Runs `swift build` in debug configuration.
+2. Creates `~/Applications/Typeflux Dev.app/Contents/MacOS/` and copies the binary, `app/Info.plist`, and `app/Typeflux.icns` into the bundle.
+3. Code-signs the bundle (see [Codesigning](#codesigning) below).
+4. Opens the app with `open`.
+
+**`make dev`** invokes `scripts/run_dev_attached.sh`, which does everything `make run` does but also:
+
+- Stops any already-running instance of the dev app.
+- Streams debug-level `os_log` output from the `Typeflux` process to your terminal using `log stream`.
+- Waits for the app to exit and cleans up the log stream.
+
+`make dev` is the most useful mode when working on the recording workflow, permissions flow, overlay behavior, or provider integrations.
+
+## Codesigning
+
+SwiftPM debug builds carry a transient ad-hoc signature with a generated identifier. The launch scripts re-sign the assembled bundle to give it a stable identity.
+
+**Default behavior (no `DEV_CODESIGN_IDENTITY` set):** the scripts fall back to an ad-hoc signature with the identifier `dev.typeflux` using `codesign --sign -`. This is sufficient for running the app, but Accessibility permission may need to be re-granted after a clean rebuild because the identity is not anchored to a certificate.
+
+**With a signing identity:** export `DEV_CODESIGN_IDENTITY` in your shell before running `make run` or `make dev`:
+
+```bash
+export DEV_CODESIGN_IDENTITY="Apple Development: Your Name (XXXXXXXXXX)"
+make run
+```
+
+The script automatically selects the first available `Apple Development` certificate from your keychain if you do not set this variable but have one available. With a real certificate, the bundle identity is stable across rebuilds and TCC grants persist normally.
+
+<Warning>
+  Do not commit your signing identity or any API keys to the repository. Set `DEV_CODESIGN_IDENTITY` only in your shell environment.
+</Warning>
+
+## Other make targets
+
+| Target | Command | Description |
+|---|---|---|
+| `make test` | `swift test` | Run the full test suite |
+| `make coverage` | `scripts/coverage.sh` | Run tests and write HTML coverage report to `coverage-report/` |
+| `make format` | `scripts/format.sh` | Format source files |

@@ -1,0 +1,89 @@
+---
+title: 'Settings overview'
+description: 'All the ways to configure Typeflux to fit your workflow'
+---
+
+Open the Settings window by clicking the Typeflux icon in your menu bar and selecting **Settings**. The window is organized into sections accessible from the left sidebar. Changes take effect immediately — no restart required.
+
+## Settings sections
+
+<CardGroup cols={2}>
+  <Card title="Hotkeys" icon="keyboard" href="/workflows/hotkeys">
+    Configure the activation hotkey, ask-selection hotkey, and persona picker hotkey.
+  </Card>
+  <Card title="Speech recognition" icon="wave-square" href="/providers/speech-to-text">
+    Choose your STT provider: free model, local model, Whisper API, Groq, multimodal LLM, AliCloud, or Doubao.
+  </Card>
+  <Card title="Language model" icon="cpu" href="/providers/llm-backends">
+    Select and configure the LLM used for persona rewriting and ask-selection answers.
+  </Card>
+  <Card title="Local models" icon="hard-drive" href="/providers/local-models">
+    Download and manage on-device speech models such as WhisperKit, SenseVoice, and Qwen3-ASR.
+  </Card>
+  <Card title="Personas" icon="user" href="/settings/personas">
+    Create custom AI personas that shape how Typeflux rewrites your dictated text.
+  </Card>
+  <Card title="MCP servers" icon="server" href="/settings/mcp-servers">
+    Connect external tool servers to extend the agent workflow in ask-selection mode.
+  </Card>
+</CardGroup>
+
+## General preferences
+
+The **Settings → General** section contains appearance, language, and launch behavior controls.
+
+| Preference | Options | Notes |
+|---|---|---|
+| Language | English / Chinese | Applies to the entire UI immediately |
+| Appearance | System / Light / Dark | Follows the `ui.appearance` UserDefaults key |
+| Launch at login | Toggle | Registers Typeflux as a login item |
+
+## Audio settings
+
+Found under **Settings → Audio**.
+
+| Preference | Options | Notes |
+|---|---|---|
+| Preferred microphone | Automatic / any connected input device | Defaults to the system default input; falls back to Automatic if the saved device is disconnected |
+| Mute system output during recording | Toggle | Suppresses system audio playback while the microphone is active |
+
+## Advanced settings
+
+| Preference | Default | Notes |
+|---|---|---|
+| Sound effects | On | Plays audio feedback on recording start and stop |
+| Persona hotkey applies to selection | Off (Beta) | When enabled, pressing the persona hotkey while text is selected opens the picker to rewrite that selection |
+| Automatic vocabulary collection | On | Suggests new vocabulary terms from transcription results |
+| Apple Speech fallback | Off | Falls back to on-device Apple Speech Recognition if the primary STT provider fails |
+| Agent Framework | Off (Beta) | Must be enabled for MCP tools to be invoked during ask-selection |
+
+## History retention
+
+Control how long Typeflux keeps your transcription history under **History**.
+
+| Policy | Retention period |
+|---|---|
+| Never | Records are deleted immediately after each session |
+| 1 Day | Records older than 24 hours are purged |
+| 1 Week | Records older than 7 days are purged *(default)* |
+| 1 Month | Records older than 30 days are purged |
+| Forever | No automatic deletion |
+
+<Note>
+  All history is stored locally in `~/Library/Application Support/Typeflux/history.sqlite`. Nothing is uploaded to the cloud.
+</Note>
+
+## Vocabulary
+
+The Vocabulary section lets you maintain a list of custom terms that are passed to the STT provider to improve transcription accuracy for domain-specific words, names, and jargon.
+
+Terms have two sources:
+
+- **Manual** — entered by you directly via the **+ New Word** button.
+- **Automatic** — suggested by Typeflux after it detects repeated or uncommon words in your transcription results (requires Automatic vocabulary collection to be enabled).
+
+You can filter the vocabulary list by source (All / Automatic / Manual) and search by term. Duplicate terms are deduplicated automatically based on normalized (whitespace-trimmed) matching.
+
+<Tip>
+  Add product names, technical abbreviations, and proper nouns to the vocabulary list to reduce transcription errors for those specific words.
+</Tip>

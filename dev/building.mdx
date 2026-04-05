@@ -1,0 +1,151 @@
+---
+title: "Building"
+description: "How to build, test, and run Typeflux locally"
+---
+
+## Requirements
+
+- macOS 13 or later
+- Xcode with Swift 5.9+ tooling, or a standalone Swift toolchain
+- Command-line developer tools (`xcode-select --install`)
+- Microphone, Accessibility, and Speech Recognition permissions granted to the dev app
+
+## Commands
+
+### Compile
+
+```bash
+swift build
+```
+
+Compiles the `Typeflux` executable target. The output binary lands at `.build/debug/Typeflux`.
+
+### Test
+
+```bash
+swift test
+```
+
+Runs the full test suite in `Tests/TypefluxTests/`. Equivalent to `make test`.
+
+### Run a single test class
+
+```bash
+swift test --filter TypefluxTests.LLMRouterTests
+```
+
+Pass any class name from `Tests/TypefluxTests/` to run only that file. You can also target a specific method:
+
+```bash
+swift test --filter TypefluxTests.LLMRouterTests/testCompleteRoutesToOpenAI
+```
+
+### Launch the dev app
+
+```bash
+make run
+```
+
+This script (`scripts/run_dev_app.sh`) runs `swift build`, assembles the binary into `~/Applications/Typeflux Dev.app`, code-signs it, and opens it with `open`. Use this when you want to test the app without keeping a terminal attached.
+
+### Launch with logs attached
+
+```bash
+make dev
+```
+
+This script (`scripts/run_dev_attached.sh`) performs the same build and bundle steps, then streams `log stream` output from the Typeflux process to your terminal. The app runs until you press **Ctrl+C**, which terminates both the log stream and the app.
+
+This is the most useful mode when you are working on the hotkey pipeline, recording behavior, overlay display, provider integrations, or text injection.
+
+### Code coverage
+
+```bash
+make coverage
+```
+
+Runs `swift test --enable-code-coverage`, then uses `xcrun llvm-cov` to generate a per-file HTML coverage report in `coverage-report/`. Open the result with:
+
+```bash
+open coverage-report/index.html
+```
+
+The CI workflow also uploads coverage to Codecov automatically on every push to `main`.
+
+### Format and lint
+
+```bash
+make format
+```
+
+Runs SwiftFormat followed by SwiftLint (with a baseline file). Neither tool is enforced by a pre-commit hook, so run this manually when you want to normalize style across a larger change.
+
+## Why the app must run as a .app bundle
+
+Running the bare `.build/debug/Typeflux` binary directly does not work for normal use. There are three reasons:
+
+1. **Menu bar behavior.** macOS only allows apps with an `NSStatusItem` to appear in the menu bar when they are running as proper app bundles with a valid `Info.plist`.
+2. **Privacy permissions.** macOS TCC (Transparency, Consent, and Control) ties Microphone, Accessibility, and Speech Recognition grants to the bundle identifier and signing identity of a `.app`. A bare binary has neither, so permissions cannot be granted in System Settings.
+3. **Stable identity across rebuilds.** Swift Package Manager debug builds attach a transient ad-hoc signature with a randomly generated identifier. Re-signing the assembled bundle with a fixed identifier (`dev.typeflux` by default) prevents macOS from revoking the Accessibility grant every time you rebuild.
+
+The `scripts/run_dev_app.sh` and `scripts/run_dev_attached.sh` scripts handle all of this automatically.
+
+## Code signing
+
+By default, both launch scripts attempt to detect an Apple Development certificate in your keychain and use it. If none is found, they fall back to ad-hoc signing with the fixed identifier `dev.typeflux`.
+
+<Warning>
+Ad-hoc signing with a transient identifier may cause macOS to require you to re-grant Accessibility permission after every rebuild. Use a stable Apple Development identity to avoid this.
+</Warning>
+
+To use a specific identity, set `DEV_CODESIGN_IDENTITY` in your shell before running `make run` or `make dev`:
+
+```bash
+export DEV_CODESIGN_IDENTITY="Apple Development: Your Name (XXXXXXXXXX)"
+make dev
+```
+
+Do not commit this value anywhere in the repository.
+
+<Tip>
+Run `security find-identity -v -p codesigning` to list certificates available in your keychain.
+</Tip>
+
+## Development inner loop
+
+<Steps>
+  <Step title="Edit source code">
+    Make your changes in `Sources/Typeflux/`. The module layout is described in [Architecture](/dev/architecture).
+  </Step>
+  <Step title="Run tests for logic changes">
+    ```bash
+    swift test
+    ```
+    This is fast and does not require the app bundle. Run it after every non-trivial change to routing, parsing, prompt generation, or provider behavior.
+  </Step>
+  <Step title="Launch in attached mode for real desktop testing">
+    ```bash
+    make dev
+    ```
+    The app builds, bundles, and opens with logs streaming to your terminal. Test the change in context — trigger the hotkey, speak, watch the overlay, and verify that text is injected into a real app.
+  </Step>
+  <Step title="Validate the full interaction path">
+    Confirm each part of the pipeline works end to end:
+    - Hotkey press and release are detected
+    - Recording starts and the overlay appears
+    - Transcription completes and the result is correct
+    - Text is injected into the focused application
+    - The session appears in history
+  </Step>
+  <Step title="Check coverage for core workflow changes">
+    ```bash
+    make coverage
+    open coverage-report/index.html
+    ```
+    Run this before opening a PR when your change touches the workflow controller, STT router, LLM router, or text injection paths.
+  </Step>
+</Steps>
+
+## CI
+
+GitHub Actions runs the test suite on every push to `main` and on every pull request via `.github/workflows/test.yml`. The workflow runs `swift test --enable-code-coverage`, generates an lcov report with `xcrun llvm-cov`, and uploads it to Codecov. All tests must pass before a PR can be merged.

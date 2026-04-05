@@ -1,0 +1,120 @@
+---
+title: 'MCP servers'
+description: 'Connect external tool servers to extend the Typeflux agent workflow'
+---
+
+**Model Context Protocol (MCP)** is an open standard for connecting language models to external tools and data sources. Typeflux can act as an MCP client, connecting to MCP servers that expose callable tools.
+
+<Info>
+  MCP tools are only invoked during **Ask Selection** mode when the **Agent Framework** is enabled in Settings → Advanced. Standard voice dictation and persona rewriting do not use MCP tools.
+</Info>
+
+## How MCP tools fit into the workflow
+
+When Ask Selection runs with the Agent Framework enabled, the LLM agent has access to:
+
+- Built-in tools: `answer_text`, `edit_text`, `get_clipboard`
+- Any tools exposed by your connected and enabled MCP servers
+
+The agent can call these tools in a multi-step reasoning loop before producing its final output.
+
+## Transport types
+
+Typeflux supports two MCP transport mechanisms.
+
+<AccordionGroup>
+  <Accordion title="Stdio — local process">
+    The Stdio transport launches a local command as an MCP server process. Typeflux starts the process, communicates over standard input/output, and terminates it when done.
+
+    **Configuration fields:**
+
+    | Field | Description | Example |
+    |---|---|---|
+    | Command | Full path to the executable | `/usr/local/bin/my-mcp-server` |
+    | Arguments | Space-separated args passed to the command | `--port 3000 --verbose` |
+    | Environment variables | `KEY=VALUE` pairs, one per line | `API_KEY=abc123` |
+
+    **Best for:** local scripts, file system access tools, desktop integrations, and any tool that runs on the same Mac as Typeflux.
+  </Accordion>
+  <Accordion title="HTTP/SSE — remote server">
+    The HTTP/SSE transport connects to a remote HTTP endpoint that speaks MCP over Server-Sent Events. No local process is launched.
+
+    **Configuration fields:**
+
+    | Field | Description | Example |
+    |---|---|---|
+    | URL | Full HTTPS URL of the MCP SSE endpoint | `https://mcp.example.com/sse` |
+    | Headers | `KEY=VALUE` pairs for HTTP headers, one per line | `Authorization=Bearer token123` |
+
+    **Best for:** hosted MCP services, remote tool APIs, and shared team tool servers.
+  </Accordion>
+</AccordionGroup>
+
+## Adding an MCP server
+
+<Steps>
+  <Step title="Open Settings → Agent → MCP Servers">
+    Click the Typeflux menu bar icon, select **Settings**, choose **Agent** in the sidebar, then switch to the **MCP Servers** tab.
+  </Step>
+  <Step title="Click Add Server">
+    Click the **+ Add Server** button. A configuration dialog opens.
+  </Step>
+  <Step title="Choose a transport type">
+    Select **STDIO** for a local process server or **HTTP/SSE** for a remote server. The form updates to show the relevant fields.
+  </Step>
+  <Step title="Enter connection details">
+    Fill in the required fields for your chosen transport:
+    - **Stdio:** Command path, optional arguments, optional environment variables.
+    - **HTTP/SSE:** Server URL, optional HTTP headers.
+  </Step>
+  <Step title="Configure options">
+    - **Enabled** — controls whether this server is available to the agent. Servers can be disabled without deleting them.
+    - **Auto-connect** — when enabled, Typeflux attempts to connect to this server automatically at startup.
+  </Step>
+  <Step title="Test and save">
+    Click **Test Connection** to verify that Typeflux can reach the server and enumerate its tools. A successful test lists the discovered tools by name. Click **Save** to add the server to your list.
+  </Step>
+</Steps>
+
+## Managing existing servers
+
+Each server card in the MCP Servers list shows the server name, transport type, and connection endpoint. From a server card you can:
+
+- **Toggle enabled/disabled** using the switch on the right.
+- **Test the connection** by clicking the network icon button.
+- **Edit configuration** by clicking anywhere on the card or right-clicking and selecting **Edit**.
+- **Delete** by right-clicking and selecting **Delete**.
+
+## Server configuration data structure
+
+MCP server configurations are persisted to UserDefaults under the `mcp.servers` key as a JSON array. Each entry has the following shape:
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | UUID | Stable unique identifier |
+| `name` | String | Display name shown in the server list |
+| `transport` | `stdio` \| `http` | Transport variant with its nested config |
+| `enabled` | Bool | Whether the server is available to the agent |
+| `autoConnect` | Bool | Whether to connect automatically on startup |
+
+For a Stdio server, the nested `transport` payload includes `command` (String), `args` ([String]), and `env` ([String: String]). For an HTTP server it includes `url` (String) and `headers` ([String: String]).
+
+## Enabling the Agent Framework
+
+MCP tools are only available when the Agent Framework is turned on.
+
+<Steps>
+  <Step title="Open Settings → Advanced">
+    Navigate to the **Settings** section in the sidebar.
+  </Step>
+  <Step title="Enable Agent Framework">
+    Toggle **Agent Framework** on. This is a Beta feature.
+  </Step>
+  <Step title="Enable Agent in the Agent section">
+    Navigate to **Agent → General** and ensure **Agent enabled** is also toggled on.
+  </Step>
+</Steps>
+
+<Warning>
+  MCP servers run with the same macOS permissions as Typeflux. A malicious or compromised MCP server could read files, make network requests, or execute commands on your machine. Only connect servers you trust.
+</Warning>

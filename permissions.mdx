@@ -1,0 +1,92 @@
+---
+title: "Permissions"
+description: "macOS permissions Typeflux needs and how to grant them"
+---
+
+Typeflux requires access to macOS privacy-protected APIs to record audio and insert text. This page explains each permission, when it is needed, and how to grant it.
+
+## Required permissions
+
+<CardGroup cols={1}>
+  <Card title="Microphone" icon="mic">
+    Typeflux records audio while you hold the activation hotkey. Without microphone access, recording cannot start and no transcription is possible.
+  </Card>
+  <Card title="Accessibility" icon="universal-access">
+    Typeflux uses the macOS Accessibility API to inject transcribed text into the currently focused application and to read any text you have selected before activating voice editing mode. Without Accessibility access, text insertion does not work. The app copies results to the clipboard as a fallback, but direct injection into text fields requires this permission.
+  </Card>
+  <Card title="Speech Recognition" icon="wave-square">
+    Only required when using **Apple Speech** as the STT provider or when the **Apple Speech fallback** option is enabled in Settings → Models. If you use a different provider (Whisper API, Free Model, Groq, etc.) with the fallback disabled, this permission is not needed.
+  </Card>
+</CardGroup>
+
+## First-launch onboarding
+
+When you launch Typeflux for the first time it opens an onboarding window. The permissions step shows the current status of each permission with a badge indicating whether it is granted or still required.
+
+<Steps>
+  <Step title="Open the permissions step">
+    Progress through the onboarding until you reach the **Permissions** step (identified by the lock shield icon). You will see a card for each permission with its current state.
+  </Step>
+  <Step title="Grant Microphone access">
+    Click **Grant Access** on the Microphone card. macOS presents a system prompt asking whether to allow Typeflux to access the microphone. Click **OK**. The card badge updates to **Granted**.
+
+    If the system prompt does not appear (the permission was previously denied), clicking the button opens **System Settings → Privacy & Security → Microphone** directly.
+  </Step>
+  <Step title="Grant Accessibility access">
+    Click **Grant Access** on the Accessibility card. macOS opens **System Settings → Privacy & Security → Accessibility**. Find Typeflux in the list and enable the toggle.
+
+    Accessibility permission cannot be granted via a system prompt — macOS always requires you to enable it manually in System Settings.
+  </Step>
+  <Step title="Grant Speech Recognition access (if applicable)">
+    If you selected Apple Speech as your STT provider, a Speech Recognition card is also shown. Click **Grant Access**. macOS presents a system prompt; click **OK** to allow access.
+
+    If you are not using Apple Speech and the fallback is disabled, this card may not appear or may be listed as optional.
+  </Step>
+  <Step title="Continue">
+    Once the required permissions are granted, click **Continue** to advance to the shortcuts step and complete onboarding.
+
+    Typeflux monitors permission status while the permissions step is visible. If you switch to System Settings to grant a permission and then return to the app, the card updates automatically.
+  </Step>
+</Steps>
+
+## Granting permissions manually
+
+If you need to grant or re-grant a permission outside of onboarding, open System Settings and navigate to the relevant pane:
+
+| Permission | System Settings path |
+|---|---|
+| Microphone | Privacy & Security → Microphone |
+| Accessibility | Privacy & Security → Accessibility |
+| Speech Recognition | Privacy & Security → Speech Recognition |
+
+Find Typeflux in the list for each pane and make sure the toggle is enabled.
+
+<Note>
+  The app can open the correct System Settings pane for you. In the menu bar, click the Typeflux icon and look for any permission-related notices, or go to Settings → Permissions.
+</Note>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Accessibility permission stops working after a rebuild">
+    macOS ties Accessibility grants to the app bundle's signing identity. If you rebuild without a stable signing identity, the identity changes and macOS revokes the Accessibility grant.
+
+    To fix this: open **System Settings → Privacy & Security → Accessibility**, find any stale Typeflux entries and remove them, then re-add the current `~/Applications/Typeflux Dev.app`.
+
+    To prevent this in future: set `DEV_CODESIGN_IDENTITY` to a real Apple Development certificate before running `make run` or `make dev`. See [Installation](/installation) for details.
+  </Accordion>
+  <Accordion title="Microphone permission was denied and the prompt does not appear again">
+    macOS only shows the microphone prompt once. If you denied it, open **System Settings → Privacy & Security → Microphone**, find Typeflux in the list, and enable the toggle manually.
+  </Accordion>
+  <Accordion title="Text is not inserted but appears in the clipboard">
+    This usually means Accessibility permission is missing or has been revoked. Check **System Settings → Privacy & Security → Accessibility** and confirm Typeflux is listed and enabled.
+
+    If the entry is missing, launch the app and trigger a recording. Typeflux will request Accessibility access via `AXIsProcessTrustedWithOptions`, which prompts macOS to open the Accessibility pane.
+  </Accordion>
+  <Accordion title="Speech Recognition is requested even though I am not using Apple Speech">
+    Speech Recognition is required when either the **Apple Speech** provider is selected or the **Apple Speech fallback** option is enabled. Check Settings → Models and disable the fallback if you do not want to use Apple Speech.
+  </Accordion>
+  <Accordion title="The app surfaces a permissions warning on every launch">
+    If Typeflux shows a permissions warning on every launch, at least one required permission is not granted for the current app identity. This can happen after a clean build with ad-hoc signing. Grant the missing permission in System Settings or rebuild with a stable `DEV_CODESIGN_IDENTITY` to prevent the identity from changing.
+  </Accordion>
+</AccordionGroup>

@@ -1,0 +1,88 @@
+---
+title: "Voice Editing"
+description: "Select text, speak an instruction, and rewrite it with AI"
+---
+
+Voice editing combines speech-to-text with an LLM rewrite step. Select existing text in any app, speak an instruction, and Typeflux rewrites the selection based on what you said.
+
+## Prerequisites
+
+Voice editing requires an LLM backend to be configured. Without one, Typeflux can transcribe your speech but cannot perform the rewrite step.
+
+<Info>
+  See [LLM backends](/providers/llm-backends) to configure an OpenAI-compatible endpoint or a local Ollama instance.
+</Info>
+
+## How it works
+
+When you activate voice editing with a text selection, Typeflux:
+
+1. Captures a snapshot of the selected text and its location
+2. Records your spoken instruction
+3. Transcribes the instruction using your configured speech-to-text provider
+4. Sends the selected text and transcribed instruction to your LLM
+5. Streams the rewritten output to the overlay
+6. Replaces the selection with the final result
+
+## The workflow
+
+<Steps>
+  <Step title="Select text in any app">
+    Highlight the text you want to rewrite. Voice editing works in any app where text is editable — text editors, email clients, browsers, notes apps, and more.
+  </Step>
+  <Step title="Press and hold the activation hotkey">
+    The default hotkey is **Fn**. Typeflux detects that you have a selection and enters voice editing mode.
+  </Step>
+  <Step title="Speak your instruction">
+    Describe what you want done with the selected text. Examples:
+
+    - "Make this more formal"
+    - "Translate to Spanish"
+    - "Summarize this in one sentence"
+    - "Fix the grammar and punctuation"
+    - "Rewrite this as bullet points"
+  </Step>
+  <Step title="Release the hotkey">
+    Typeflux transcribes your instruction, sends it along with the selected text to the LLM, and streams the rewrite to the overlay.
+  </Step>
+  <Step title="Result is applied">
+    The rewritten text replaces the original selection in place. If replacement is not possible, the result appears in a dialog with a copy button.
+  </Step>
+</Steps>
+
+## Streaming preview
+
+As the LLM generates the rewrite, the output streams into the overlay in real time. You can see the result forming before it is applied, giving you a chance to cancel if the output is going in the wrong direction.
+
+## When replacement is not possible
+
+If the target app or field is not editable — for example, a read-only document, a PDF viewer, or a locked text area — Typeflux cannot replace the selection directly. In this case:
+
+- A result dialog appears showing the rewritten text
+- A **Copy** button lets you copy the result to the clipboard
+- You can then paste it wherever you need it
+
+## Persona influence
+
+If you have a persona active in Typeflux, its system prompt is included in the LLM request alongside your voice instruction. This lets a persona shape the tone, style, or format of the rewrite without you having to repeat those instructions each time.
+
+For example, a "Make it concise" persona will apply its brevity rules to every voice editing session, so your instruction only needs to describe the specific change you want ("translate to German", "add examples", etc.).
+
+<Tip>
+  Use a persona for consistent style enforcement and voice instructions for the specific edit. The two layer naturally without conflict.
+</Tip>
+
+## Retrying failed sessions
+
+If a voice editing session fails — due to a network error, LLM timeout, or transcription issue — Typeflux saves the session to history with a retry option. Open the history panel and click **Retry** on the failed record to reprocess it with the same audio and selection context.
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Personas" icon="user" href="/settings/personas">
+    Create and manage personas that shape how the LLM rewrites text.
+  </Card>
+  <Card title="LLM backends" icon="cpu" href="/providers/llm-backends">
+    Configure the LLM service used for rewriting.
+  </Card>
+</CardGroup>

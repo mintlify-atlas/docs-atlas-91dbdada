@@ -1,0 +1,53 @@
+---
+title: "Introduction"
+description: "What Typeflux is and what it can do for you"
+---
+
+Typeflux is a macOS menu bar voice input tool built in Swift. It is designed around a single fast loop: hold a hotkey, speak naturally, release, and have the transcribed text inserted directly into whatever app you are working in.
+
+The project targets people who want voice input to feel like a native part of desktop typing — not a separate recording app you switch to. Typeflux sits quietly in the menu bar and gets out of your way until you need it.
+
+## How it works
+
+The core interaction is a hold-to-talk gesture:
+
+1. Press and hold the activation hotkey.
+2. Speak. A lightweight floating overlay shows recording status and a live transcription preview.
+3. Release the hotkey to finish recording.
+4. Typeflux transcribes your speech and injects the result into the currently focused app. The result is also copied to the clipboard as a fallback.
+
+A locked recording mode is also available for longer sessions where holding the key is inconvenient.
+
+## Two main modes
+
+**Dictation mode** is the default. Speak and receive text at your cursor position.
+
+**Voice editing mode** activates when you have text selected before pressing the hotkey. Typeflux treats the selection as context and applies your spoken instruction to rewrite or transform it — useful for polishing, shortening, translating, or rephrasing existing content with a voice command.
+
+## Key highlights
+
+- **Multiple speech-to-text providers** — Apple Speech, Whisper API, OpenAI-compatible remote APIs, local WhisperKit models, Alibaba Cloud realtime ASR, Doubao realtime ASR, and Groq. The routing layer can fall back to Apple Speech automatically.
+- **LLM rewriting** — Rewrite and post-processing workflows support OpenAI-compatible services and Ollama for local model serving.
+- **Personas** — Configurable system prompts let you shape how the LLM rewrites your text.
+- **History** — Typeflux stores session history, lets you retry previous records, and includes audio and text session review.
+- **Local-first privacy** — The architecture supports fully local transcription setups. No audio needs to leave your machine if you choose a local provider.
+- **Streaming transcription** — Providers that support streaming show you near-live feedback as you speak.
+
+<CardGroup cols={2}>
+  <Card title="Quick start" icon="rocket" href="/quickstart">
+    Build, launch, and get your first voice input working in under five minutes.
+  </Card>
+  <Card title="Dictation" icon="mic" href="/workflows/dictation">
+    Speak and insert text at the cursor in any app.
+  </Card>
+  <Card title="Voice editing" icon="pencil" href="/workflows/voice-editing">
+    Select text, speak an instruction, and let Typeflux rewrite it.
+  </Card>
+  <Card title="Providers" icon="plug" href="/providers/overview">
+    Browse and configure the available speech-to-text and LLM backends.
+  </Card>
+</CardGroup>
+
+<Note>
+  Typeflux is open source and licensed under the GNU Affero General Public License v3.0 (AGPL-3.0). You are free to use, modify, and redistribute the code. Distributing a modified version or derivative work — including over a network — requires you to provide the source code under the same AGPL-compatible terms. See the [LICENSE](https://github.com/mylxsw/typeflux/blob/main/LICENSE) file for the full text.
+</Note>

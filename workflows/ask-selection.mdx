@@ -1,0 +1,94 @@
+---
+title: "Ask Selection"
+description: "Select text and ask a question — get an answer in a floating panel"
+---
+
+Ask Selection lets you speak a question or instruction about any text on screen and receive an answer in a floating panel, or have the selection rewritten — whichever the LLM decides is appropriate based on what you asked.
+
+## How it works
+
+Ask Selection is triggered by a dedicated ask hotkey (separate from the dictation activation hotkey). It always starts in locked recording mode: press the ask hotkey once to begin recording, speak, then press it again to finish.
+
+After transcription, Typeflux sends the spoken instruction and the selected text to the LLM. The LLM decides whether to:
+
+- **Answer** — return a response shown in a floating Ask Answer panel with markdown rendering
+- **Edit** — rewrite the selected text and replace it in place
+
+## The workflow
+
+<Steps>
+  <Step title="Select text in any app (optional)">
+    Highlight the text you want to ask about. Selecting text is optional — you can ask a standalone question without any selection.
+  </Step>
+  <Step title="Press the ask hotkey">
+    The default ask hotkey is **Fn Space**. Locked recording starts immediately; you do not need to hold the key.
+  </Step>
+  <Step title="Speak your question or instruction">
+    Ask about the selected text, give an instruction, or pose a standalone question. Examples:
+
+    - "What does this paragraph mean?"
+    - "Are there any factual errors in this?"
+    - "Translate this to French and explain any idioms"
+    - "What's the capital of Australia?" *(no selection needed)*
+  </Step>
+  <Step title="Press the ask hotkey again to finish">
+    Typeflux stops recording and begins processing.
+  </Step>
+  <Step title="View the result">
+    Depending on what you asked, Typeflux either opens the Ask Answer panel with a formatted response, or replaces your selection with the LLM output.
+  </Step>
+</Steps>
+
+## Answer mode
+
+When the LLM determines your spoken input is a question, it returns a response shown in the **Ask Answer panel** — a floating window that:
+
+- Renders markdown (headings, lists, code blocks, emphasis)
+- Stays on screen until dismissed
+- Lets you copy the answer text
+
+Answer mode is always used when there is no selection, since there is nothing to replace.
+
+## Edit mode
+
+When the LLM determines your spoken input is an instruction to transform the text, it rewrites the selection and replaces it in place — the same outcome as [voice editing](/workflows/voice-editing).
+
+If the target is not editable, the rewritten text is shown in a dialog with a copy button instead.
+
+<Note>
+  The answer-vs-edit decision is made by the LLM based on the phrasing of your instruction. Phrasing like "what is..." or "explain..." typically triggers answer mode. Phrasing like "rewrite...", "translate...", or "make this..." typically triggers edit mode.
+</Note>
+
+## Agent framework
+
+When the agent framework is enabled and an agent is configured, Ask Selection can use tools to answer your question rather than relying on the LLM's trained knowledge alone. Tools the agent can use include:
+
+- **Clipboard access** — read current clipboard contents as context
+- **External MCP tools** — any tools configured in your MCP server settings
+
+With the agent framework enabled, the LLM still decides between answer and edit mode, but the answer can be grounded in live data from connected tools.
+
+<Info>
+  See [Agent framework](/dev/agent-framework) for details on enabling and configuring agents.
+</Info>
+
+## Asking without a selection
+
+You can press the ask hotkey with nothing selected to ask a free-form question. In this case:
+
+- Typeflux records and transcribes your question
+- The LLM always returns an answer (there is no selection to edit)
+- The result appears in the Ask Answer panel
+
+This makes Ask Selection a quick voice-activated assistant you can invoke from anywhere on your desktop.
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Agent framework" icon="robot" href="/dev/agent-framework">
+    Enable tool use for grounded, real-time answers.
+  </Card>
+  <Card title="MCP servers" icon="plug" href="/settings/mcp-servers">
+    Connect external tools the agent can call.
+  </Card>
+</CardGroup>

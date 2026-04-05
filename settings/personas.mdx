@@ -1,0 +1,107 @@
+---
+title: 'Personas'
+description: 'Create custom AI personas that shape how Typeflux rewrites your dictated text'
+---
+
+A **persona** is a system prompt that tells the language model how to transform your raw voice transcript before it is inserted into your active application. When a persona is active, your spoken words pass through the LLM rewrite step; when no persona is active, the raw transcript is inserted verbatim.
+
+## How personas work
+
+```
+Voice input → Speech-to-text → Transcript
+                                    │
+                         (persona active?)
+                          ┌──────────┴──────────┐
+                         Yes                    No
+                          │                      │
+                     LLM rewrite           Insert verbatim
+                     (persona prompt)
+                          │
+                     Final output → Inserted into active app
+```
+
+<Note>
+  The Multimodal LLM STT provider handles persona rewriting internally in a single API call, so no separate LLM rewrite step is triggered for that provider.
+</Note>
+
+## Built-in personas
+
+Typeflux ships with two **system** personas. System personas are read-only — you can view them and select them as active, but you cannot edit or delete them. They are marked with a **System** badge in the Personas list.
+
+Custom personas you create are unlimited and fully editable.
+
+## Managing personas
+
+<Steps>
+  <Step title="Open Settings → Personas">
+    Click the Typeflux menu bar icon, select **Settings**, then choose **Personas** in the sidebar.
+  </Step>
+  <Step title="Create a new persona">
+    Click the **+** button in the top-right corner of the Personas page. A blank draft form opens on the right.
+  </Step>
+  <Step title="Write a name and prompt">
+    Enter a short, descriptive name (for example, "Business Email") and write the system prompt in the text area. The prompt instructs the LLM on how to rewrite your transcript.
+  </Step>
+  <Step title="Save the persona">
+    Click **Save**. The new persona appears at the top of the list.
+  </Step>
+  <Step title="Set the persona as active">
+    Click the persona row to select it, then click **Activate**, or use the persona picker overlay (see below). An accent-colored dot next to a persona's name indicates it is the currently active persona.
+  </Step>
+</Steps>
+
+To delete a custom persona, right-click its row and select **Delete**, or select it and confirm deletion in the dialog. System personas cannot be deleted.
+
+## Switching personas with the picker
+
+The **persona picker** is a quick-access overlay that lets you switch personas without opening Settings.
+
+1. Press your **persona hotkey** (configurable in Settings → Hotkeys).
+2. The picker overlay appears listing all personas plus a "No persona" option.
+3. Use the arrow keys or click to highlight a persona.
+4. Press **Enter** to activate the highlighted persona, or press **Escape** to dismiss without changing.
+
+The active persona is also shown as a pill indicator in the main recording overlay so you always know which persona is in effect.
+
+### Persona hotkey applies to selection (Beta)
+
+When this option is enabled in **Settings → Advanced**, pressing the persona hotkey while text is selected in another application opens the picker in selection-rewrite mode. Confirming a persona immediately rewrites the selected text using that persona's prompt via the LLM.
+
+## Default persona
+
+You can configure a **default persona** that is automatically active when Typeflux starts. Set this in **Settings → Identity** by clicking the persona card you want as the default. Choosing "No persona" disables automatic rewriting at startup.
+
+## Persona data structure
+
+Each persona is stored as a JSON entry under the `persona.items` UserDefaults key with the following fields:
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | UUID | Unique identifier, stable across renames |
+| `name` | String | Display name shown in the picker and list |
+| `prompt` | String | System prompt sent to the LLM rewrite step |
+| `kind` | `system` \| `custom` | Whether the persona is built-in or user-created |
+
+## Example persona prompts
+
+<AccordionGroup>
+  <Accordion title="Professional">
+    Rewrite the text in formal business English. Correct any grammar mistakes, improve sentence structure and clarity, and remove filler words. Preserve the original meaning.
+  </Accordion>
+  <Accordion title="Casual">
+    Make this sound friendly and conversational. Keep it brief and natural. Fix any obvious errors but do not over-edit.
+  </Accordion>
+  <Accordion title="Technical">
+    Rewrite for a technical audience. Use precise terminology. Be concise and remove any redundancy. Preserve all technical details exactly.
+  </Accordion>
+  <Accordion title="Translator (English → Spanish)">
+    Translate this text to Spanish. Preserve the original meaning, tone, and formatting. Do not add or remove information.
+  </Accordion>
+  <Accordion title="Meeting notes">
+    Convert this dictation into structured meeting notes. Use bullet points for action items, prefix them with "Action:", and group related points under short bold headings.
+  </Accordion>
+</AccordionGroup>
+
+<Tip>
+  Start your persona prompts with a clear instruction verb such as "Rewrite", "Translate", or "Summarize" to help the model understand the transformation type immediately.
+</Tip>

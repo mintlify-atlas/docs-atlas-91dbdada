@@ -1,0 +1,296 @@
+---
+title: "MCP Integration"
+description: "Connecting Typeflux to external tool servers via the Model Context Protocol"
+---
+
+The Model Context Protocol (MCP) is a JSON-RPC 2.0 based standard for connecting LLMs to external tool servers. Typeflux implements MCP as a transport layer beneath the agent framework: MCP servers expose tools, and those tools are injected into `AgentToolRegistry` the same way built-in tools are.
+
+<Note>
+  MCP tools only participate in the agent loop. They are not available in the legacy two-step ask-selection flow or in any other workflow mode.
+</Note>
+
+## Protocol overview
+
+Every MCP interaction follows the same sequence:
+
+<Steps>
+  <Step title="Connect">
+    The client sends an `initialize` request containing the protocol version (`2024-11-05`) and client metadata. The server responds with its capabilities.
+  </Step>
+  <Step title="Handshake">
+    After receiving the `initialize` response the client sends a `notifications/initialized` notification (no response expected). The connection is now live.
+  </Step>
+  <Step title="Discover tools">
+    The client calls `tools/list` to retrieve all tool definitions. Typeflux caches this list at connection time.
+  </Step>
+  <Step title="Call tools">
+    During an agent run the loop calls `tools/call` with the tool name and a JSON argument map. Results are returned as `MCPToolsCallResult`.
+  </Step>
+</Steps>
+
+## Transport implementations
+
+Typeflux ships two `MCPClient` implementations.
+
+<Tabs>
+  <Tab title="Stdio (local process)">
+    `StdioMCPClient` (`LLM/MCP/StdioMCPClient.swift`) spawns a local process and communicates over its stdin/stdout pipes.
+
+    **Config:**
+
+    ```swift
+    struct MCPStdioConfig {
+        let command: String         // absolute path to the executable
+        let args: [String]          // command-line arguments
+        let env: [String: String]   // additional environment variables (merged with current env)
+    }
+    ```
+
+    **How it works:**
+
+    1. Starts the process with `Process`, wires `Pipe` to stdin and stdout.
+    2. Launches a background `Task` that reads stdout line-by-line and dispatches each JSON-RPC response to the matching `CheckedContinuation`.
+    3. Sends `initialize` → awaits response → stores `MCPConnectionInfo`.
+    4. Sends `notifications/initialized` (fire-and-forget).
+    5. Subsequent `listTools` / `callTool` / `ping` calls follow the same send-and-await pattern.
+
+    **Lifecycle:**
+
+    ```swift
+    func connect() async throws   // starts process, performs handshake
+    func disconnect() async        // terminates process, cancels pending requests
+    func ping() async throws       // sends "ping" method, validates the connection is alive
+    ```
+  </Tab>
+  <Tab title="HTTP (remote server)">
+    `HTTPMCPClient` (`LLM/MCP/HTTPMCPClient.swift`) sends JSON-RPC over HTTP POST and receives synchronous JSON responses.
+
+    **Config:**
+
+    ```swift
+    struct MCPHTTPConfig {
+        let url: URL
+        let headers: [String: String]   // e.g. ["Authorization": "Bearer <token>"]
+    }
+    ```
+
+    **How it works:**
+
+    1. Creates a `URLSession` and sends an `initialize` POST request.
+    2. Parses the response body as `MCPInitializeResult`, stores `MCPConnectionInfo`.
+    3. Subsequent requests are plain `POST` calls to the same URL with different `method` fields.
+
+    **HTTP details:**
+
+    - `Content-Type: application/json` on every request.
+    - Custom headers (such as `Authorization: Bearer ...`) are merged from `MCPHTTPConfig.headers`.
+    - Non-2xx responses throw `MCPClientError.serverError(code:message:)`.
+
+    ```swift
+    func connect() async throws   // performs initialize handshake
+    func disconnect() async        // invalidates URLSession
+    func ping() async throws       // sends "ping" method
+    ```
+  </Tab>
+</Tabs>
+
+## MCPClient protocol
+
+Both transports conform to:
+
+```swift
+protocol MCPClient: Actor {
+    var serverInfo: MCPConnectionInfo? { get }
+    var isConnected: Bool { get }
+
+    func connect() async throws
+    func disconnect() async
+    func listTools() async throws -> [MCPToolDefinition]
+    func callTool(name: String, arguments: [String: Any]) async throws -> MCPToolsCallResult
+    func ping() async throws
+}
+```
+
+`MCPConnectionInfo` carries the server's reported name, negotiated protocol version, and capability flags:
+
+```swift
+struct MCPConnectionInfo {
+    let name: String
+    let protocolVersion: String
+    let capabilities: MCPServerCapabilities
+}
+
+struct MCPServerCapabilities: Codable {
+    let tools: MCPToolsCapability?   // listChanged: Bool?
+}
+```
+
+## JSON-RPC messages
+
+`MCPJsonRPCMessage` (`LLM/MCP/MCPMessage.swift`) is the wire-level type. Params and results use a `[String: AnyCodable]` dictionary so the same struct handles all method types without subclassing:
+
+```swift
+struct MCPJsonRPCMessage: Codable {
+    let jsonrpc: String                  // always "2.0"
+    let id: MCPMessageId?                // .string or .number; nil for notifications
+    let method: String?                  // "initialize", "tools/list", "tools/call", etc.
+    let params: [String: AnyCodable]?
+    let result: [String: AnyCodable]?
+    let error: MCPErrorDetail?
+}
+```
+
+Typed decode helpers are provided as extensions:
+
+```swift
+extension MCPJsonRPCMessage {
+    func decodeInitializeResult() throws -> MCPInitializeResult
+    func decodeToolsListResult() throws -> MCPToolsListResult
+    func decodeToolsCallResult() throws -> MCPToolsCallResult
+}
+```
+
+Tool call results carry text content blocks and an optional error flag:
+
+```swift
+struct MCPToolsCallResult: Codable {
+    let content: [MCPContentBlock]
+    let isError: Bool?
+}
+
+struct MCPContentBlock: Codable {
+    let type: String    // "text"
+    let text: String?
+}
+```
+
+## MCPToolAdapter
+
+`MCPToolAdapter` (`LLM/MCP/MCPToolAdapter.swift`) bridges an `MCPToolDefinition` into the `AgentTool` protocol so it can be registered in `AgentToolRegistry` alongside built-in tools:
+
+```swift
+struct MCPToolAdapter: AgentTool {
+    let client: any MCPClient
+    let toolDef: MCPToolDefinition
+
+    var definition: LLMAgentTool {
+        LLMAgentTool(
+            name: toolDef.name,
+            description: toolDef.description ?? "",
+            inputSchema: convertSchema(toolDef.inputSchema)
+        )
+    }
+
+    func execute(arguments: String) async throws -> String {
+        // Parses arguments JSON → calls client.callTool
+        // Returns {"result": "..."} or {"error": "..."}
+    }
+}
+```
+
+`MCPToolAdapter` is not a `TerminationTool`, so MCP tools are always intermediate — they can gather information across multiple steps, but the LLM must still call `answer_text` or `edit_text` to end the loop.
+
+## MCPRegistry
+
+`MCPRegistry` (`LLM/MCP/MCPRegistry.swift`) is an `actor` that manages the lifecycle of all connected servers and exposes a unified tool list to the workflow layer:
+
+```swift
+actor MCPRegistry {
+    func addServer(_ config: MCPServerConfig) async throws
+    func removeServer(id: UUID) async
+    func allMCPTools() async -> [any AgentTool]
+    func serverId(forToolName name: String) -> UUID?
+    func connectAutoConnectServers() async
+    var connectedServerCount: Int { get }
+}
+```
+
+**Key behaviours:**
+
+- `addServer` connects the client, refreshes the tool cache for that server, and stores the config.
+- `removeServer` disconnects the client and evicts all its tools from the cache.
+- `allMCPTools` returns the current flat list of `MCPToolAdapter` instances across all connected servers.
+- `connectAutoConnectServers` reads `MCPSettingsStore.servers` and connects any server where `enabled && autoConnect` is true that isn't already connected. This is called at app launch.
+
+<Warning>
+  The tool list is cached when a server connects. If you update the tools exposed by an MCP server after it is connected, you must disconnect and reconnect to refresh the cache.
+</Warning>
+
+## Server configuration
+
+Server settings are persisted in `UserDefaults` by `MCPSettingsStore` (`Settings/MCPSettings.swift`).
+
+```swift
+struct MCPServerConfig: Codable, Identifiable {
+    let id: UUID
+    var name: String
+    var transport: MCPTransportConfig   // .stdio or .http
+    var enabled: Bool
+    var autoConnect: Bool
+}
+
+enum MCPTransportConfig: Codable {
+    case stdio(MCPStdioTransportConfig)
+    case http(MCPHTTPTransportConfig)
+}
+
+struct MCPStdioTransportConfig: Codable {
+    let command: String
+    var args: [String]
+    var env: [String: String]
+}
+
+struct MCPHTTPTransportConfig: Codable {
+    var url: String
+    var headers: [String: String]
+}
+```
+
+`MCPSettingsStore` exposes `addServer`, `removeServer`, and `updateServer` helpers that encode the array back to `UserDefaults` on each write. `MCPRegistry` reads from this store at startup to seed `connectAutoConnectServers`.
+
+## Error handling
+
+`MCPClientError` covers transport-level failures:
+
+```swift
+enum MCPClientError: LocalizedError {
+    case notConnected
+    case invalidResponse(String)
+    case serverError(code: Int, message: String)
+    case encodingError(String)
+}
+```
+
+Agent-level MCP failures surface as `AgentError`:
+
+```swift
+case mcpConnectionFailed(serverName: String, reason: String)
+case mcpServerNotFound(id: UUID)
+```
+
+When a tool call fails at the MCP layer, `MCPToolAdapter.execute` wraps the error text in `{"error": "..."}` and returns it as a normal tool result rather than throwing. This lets the LLM observe the failure and decide how to proceed, rather than aborting the loop entirely.
+
+## Testing and diagnostics
+
+<Tip>
+  Use `ping()` to verify a connection is still alive before a long agent run. Both `StdioMCPClient` and `HTTPMCPClient` implement it as a standard JSON-RPC `ping` request.
+</Tip>
+
+Example: verifying a stdio server responds:
+
+```swift
+let config = MCPStdioConfig(command: "/usr/local/bin/my-mcp-server", args: ["--port", "8080"])
+let client = StdioMCPClient(config: config)
+try await client.connect()
+try await client.ping()   // throws MCPClientError.notConnected if the process has exited
+let tools = try await client.listTools()
+print("Connected. Tools:", tools.map(\.name))
+```
+
+## Protocol version
+
+Typeflux negotiates protocol version `2024-11-05` in all `initialize` requests. Servers advertising a different version will still connect — the version string in `MCPConnectionInfo.protocolVersion` reflects what the server reports back.
+
+<Note>
+  For user-facing server setup, see [MCP Servers](/settings/mcp-servers).
+</Note>

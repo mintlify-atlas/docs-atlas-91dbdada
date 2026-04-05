@@ -1,0 +1,131 @@
+---
+title: 'Session history'
+description: 'Review, replay, and retry your voice input sessions'
+---
+
+Every time you use Typeflux, the session is saved to your local history. You can browse past sessions, play back your original audio, retry failed runs, and export your full log to Markdown — all from the menu bar.
+
+## Accessing history
+
+Click the Typeflux icon in your menu bar and select **History**. The history panel lists your sessions in reverse-chronological order with the mode, timestamp, and status for each one.
+
+## What gets saved
+
+Each session record captures the full context of a voice input run:
+
+| Field | Description |
+|---|---|
+| Transcript text | The raw text produced by speech recognition |
+| Result text | The final output after persona rewriting or selection editing |
+| Mode | Which input mode was used for this session |
+| Audio file | The `.wav` recording saved to disk |
+| Timestamps | Session date and pipeline timing at each stage |
+| Status | Per-step outcomes for recording, transcription, processing, and apply |
+| Error message | Any error captured if a step failed |
+
+### Session modes
+
+<AccordionGroup>
+  <Accordion title="Dictation">
+    Plain voice input. Typeflux transcribes your speech and types the result directly into the active text field. No LLM processing is applied.
+  </Accordion>
+  <Accordion title="Persona rewrite">
+    Voice input with an active persona applied. After transcription, the transcript is sent to the LLM with the persona prompt, and the rewritten text is typed in place of the raw transcript.
+  </Accordion>
+  <Accordion title="Edit selection">
+    Voice editing of selected text. You select text in any app, trigger Typeflux, and speak instructions. The LLM edits the selection based on what you said. Both the original and edited text are saved.
+  </Accordion>
+  <Accordion title="Ask answer">
+    Ask-selection mode, where you select text and ask a question about it. The answer is shown in the Typeflux overlay rather than typed into the active app.
+  </Accordion>
+</AccordionGroup>
+
+### Session step statuses
+
+Each session tracks four pipeline steps independently. Each step carries one of the following statuses:
+
+| Status | Meaning |
+|---|---|
+| `running` | The step is currently in progress |
+| `succeeded` | The step completed without errors |
+| `failed` | The step encountered an error |
+| `skipped` | The step was not required for this session mode |
+| `pending` | The step has not started yet |
+
+The four steps are **recording**, **transcription**, **processing** (LLM), and **apply** (typing the result). A dictation session, for example, has processing marked as `skipped` because no LLM is involved.
+
+## What you can do with history
+
+<CardGroup cols={2}>
+  <Card title="Review" icon="magnifying-glass">
+    Read the transcript, persona result, or edited selection text for any past session. Use the search bar to filter sessions by content, mode, or error message.
+  </Card>
+  <Card title="Replay audio" icon="circle-play">
+    Play back the original `.wav` recording from any session. Audio is stored locally alongside the session record and is available as long as the session has not been deleted or purged.
+  </Card>
+  <Card title="Retry" icon="rotate-right">
+    Re-run a previous or failed session using the saved audio file. Typeflux re-transcribes the recording and re-runs any LLM processing — useful when a provider was temporarily unavailable or when you want to try a different persona.
+  </Card>
+  <Card title="Export" icon="file-export">
+    Export your full session history to a Markdown file. The export includes mode, status, transcript, persona result, selection text, and any errors for every session. See [data storage](/history/data-storage) for the file location.
+  </Card>
+</CardGroup>
+
+### Deleting sessions
+
+To remove an individual session, open it in the history panel and click **Delete**. This removes both the session record and the associated audio file from disk.
+
+To remove everything at once, select **Clear All** from the history panel toolbar.
+
+## Retry workflow
+
+Retrying a session re-uses the audio file that was saved when the original session completed recording. Typeflux does not ask you to speak again.
+
+<Steps>
+  <Step title="Select a session">
+    Open the history panel and choose any session — including failed ones.
+  </Step>
+  <Step title="Click Retry">
+    Typeflux reads the saved `.wav` file from disk and starts a new transcription pass using the currently configured STT provider.
+  </Step>
+  <Step title="Processing runs">
+    If the session mode involves LLM processing (persona rewrite, edit selection, or ask answer), that step also runs again using your current settings.
+  </Step>
+  <Step title="Result is applied">
+    The new output is typed into the active app (or shown in the overlay for ask-answer mode), and the updated session record replaces the original in history.
+  </Step>
+</Steps>
+
+<Tip>
+  Retry is especially useful when transcription fails due to a temporary network or provider error. Switch to a different STT provider in Settings, then retry the session to get a result without re-recording.
+</Tip>
+
+## Usage statistics
+
+The history panel shows aggregate statistics derived from all saved sessions:
+
+| Statistic | Description |
+|---|---|
+| Total sessions | Count of all recorded sessions |
+| Success rate | Percentage of sessions where output was successfully applied |
+| Characters typed | Total output characters across all successful sessions |
+| Minutes of dictation | Total perceived speaking time across successful sessions |
+| Estimated time saved | Time speaking + waiting versus typing the same text manually |
+
+<Note>
+  Statistics are calculated from local history records only. Ask-answer sessions are excluded from character counts because the answer is shown in the overlay, not typed into an app.
+</Note>
+
+## Retention policy
+
+Typeflux automatically deletes sessions older than the configured retention period. Audio files are deleted alongside their session record.
+
+| Policy | Retention period |
+|---|---|
+| Never | Deleted immediately after each session |
+| 1 Day | Purged after 24 hours |
+| 1 Week | Purged after 7 days *(default)* |
+| 1 Month | Purged after 30 days |
+| Forever | No automatic deletion |
+
+Change the retention policy under **Settings → General → History**. For details on where data is stored on disk, see [Data storage](/history/data-storage).

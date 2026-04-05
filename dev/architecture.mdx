@@ -1,0 +1,148 @@
+---
+title: "Architecture"
+description: "How Typeflux is structured and how its modules work together"
+---
+
+Typeflux is a native macOS app built entirely with Swift Package Manager. There is a single executable target named `Typeflux` that compiles to a CLI binary, which the development scripts then bundle into a `.app` for launch. The source lives under `Sources/Typeflux/`, organized into focused modules by feature area.
+
+## Package layout
+
+```
+Package.swift
+Sources/
+  Typeflux/
+    main.swift            ← entry point
+    App/                  ← startup, DI, menu bar
+    Workflow/             ← voice-input pipeline
+    STT/                  ← speech-to-text providers
+    LLM/                  ← language model providers
+    Audio/                ← audio recording
+    Hotkey/               ← global hotkey capture
+    TextInjection/        ← accessibility text insertion
+    Overlay/              ← floating status UI
+    Settings/             ← settings UI and stores
+    History/              ← session history
+    Clipboard/            ← clipboard read/write
+    Privacy/              ← permission checking
+    Onboarding/           ← first-run flow
+    Stats/                ← usage statistics
+    Networking/           ← HTTP utilities
+    UI/                   ← SwiftUI windows
+    Dev/                  ← debug utilities
+    Resources/            ← localization, Info.plist, assets
+Tests/
+  TypefluxTests/          ← 89 unit test files
+```
+
+## External dependencies
+
+The package pulls in two external dependencies and links one system library:
+
+| Dependency | Source | Purpose |
+|---|---|---|
+| `WhisperKit` | `argmaxinc/WhisperKit` ≥ 0.9.0 | On-device Whisper model inference |
+| `swift-markdown` | `apple/swift-markdown` ≥ 0.3.0 | Markdown rendering in result views |
+| `sqlite3` | System (linked via `linkedLibrary`) | Session history persistence |
+
+## Module reference
+
+<CardGroup cols={2}>
+  <Card title="App/" icon="play">
+    Entry point and dependency wiring. `main.swift` boots the app; `DIContainer.swift` constructs and connects every service in one place; `AppCoordinator.swift` manages the top-level lifecycle; `StatusBarController.swift` owns the menu bar item and menu.
+  </Card>
+  <Card title="Workflow/" icon="arrows-left-right">
+    The voice-input pipeline. `WorkflowController.swift` is the central orchestrator — it reacts to hotkey events, drives recording, routes transcription, and triggers text injection. `WorkflowController+Agent.swift` extends it with agent (ask/answer) mode without touching the core file.
+  </Card>
+  <Card title="STT/" icon="microphone">
+    Speech-to-text provider layer. `STTRouter` selects a `Transcriber` implementation at runtime based on settings. Implementations include `WhisperAPITranscriber`, `WhisperKitTranscriber`, `AppleSpeechTranscriber`, `MultimodalLLMTranscriber`, `AliCloudRealtimeTranscriber`, `DoubaoRealtimeTranscriber`, and others. `LiveTranscriptionPreviewer` handles streaming preview display during recording.
+  </Card>
+  <Card title="LLM/" icon="sparkles">
+    Language model provider layer. `LLMRouter` dispatches to `OpenAICompatibleLLMService` or `OllamaLLMService`. The `Agent/` subdirectory contains the multi-turn agentic loop (`AgentLoop`, `AgentToolRegistry`, `AgentSkillRegistry`). The `MCP/` subdirectory contains Model Context Protocol support via `StdioMCPClient`, `HTTPMCPClient`, and `MCPRegistry`.
+  </Card>
+  <Card title="Audio/" icon="volume-high">
+    Audio capture. `AVFoundationAudioRecorder` wraps AVFoundation recording. `AudioDeviceManager` handles device selection and format negotiation.
+  </Card>
+  <Card title="Hotkey/" icon="keyboard">
+    Global hotkey capture. `EventTapHotkeyService` installs a CGEventTap to intercept key events system-wide and converts them into workflow events. `HotkeyGestureArbiter` handles press, hold, and release gesture sequencing.
+  </Card>
+  <Card title="TextInjection/" icon="i-cursor">
+    Accessibility-based text insertion. `AXTextInjector` uses the macOS Accessibility API to write text into the focused field of any application. Falls back to clipboard paste when direct injection is not possible.
+  </Card>
+  <Card title="Overlay/" icon="layer-group">
+    Floating status overlay. Shown during recording and processing to give the user live feedback. Built with SwiftUI and positioned above all other windows.
+  </Card>
+  <Card title="Settings/" icon="sliders">
+    Settings UI and persistence. `SettingsStore` writes to `UserDefaults` under `com.typeflux.plist`. `VocabularyStore` stores custom vocabulary hints. SwiftUI views cover providers, hotkeys, personas, and preferences.
+  </Card>
+  <Card title="History/" icon="clock-rotate-left">
+    Session history. `HistoryStore` is a protocol with `SQLiteHistoryStore` as the production implementation (WAL mode, stored at `~/Library/Application Support/Typeflux/history.sqlite`). History changes are broadcast via `NotificationCenter` using `.historyStoreDidChange`.
+  </Card>
+  <Card title="Privacy/ + Onboarding/" icon="shield">
+    Permission management. `PrivacyGuard` checks microphone, accessibility, and speech recognition status and surfaces guidance when permissions are missing. The `Onboarding/` module runs the first-launch permission flow.
+  </Card>
+  <Card title="Networking/" icon="globe">
+    Shared HTTP utilities. `RequestRetry` adds retry logic to network calls. `NetworkDebugLogger` records request/response pairs for debugging provider integrations.
+  </Card>
+</CardGroup>
+
+## Data flow
+
+The core voice-input pipeline follows a linear path through the modules:
+
+```
+User holds hotkey
+       │
+       ▼
+ EventTapHotkeyService   (Hotkey/)
+       │  hotkey event
+       ▼
+ WorkflowController      (Workflow/)
+       │  start recording
+       ▼
+ AVFoundationAudioRecorder  (Audio/)
+       │  audio buffer
+       ▼
+ STTRouter               (STT/)
+       │  selects Transcriber
+       ▼
+ Transcriber impl        (WhisperKit / Apple Speech / remote API / …)
+       │  transcript text
+       ▼
+ LLMService (optional)   (LLM/)
+       │  rewritten text
+       ▼
+ AXTextInjector          (TextInjection/)
+       │  clipboard fallback if AX fails
+       ▼
+ SQLiteHistoryStore      (History/)
+```
+
+All services are constructed and wired in `DIContainer`. The `Overlay/` module is notified by `WorkflowController` at each stage to update the floating status display.
+
+## Key design patterns
+
+<AccordionGroup>
+  <Accordion title="Protocol-backed services">
+    Core services are defined as Swift protocols — `Transcriber`, `HistoryStore`, `TextInjector`, `LLMService`, and others. `DIContainer` constructs concrete implementations and injects them. This makes it straightforward to add a new provider (for example, a new STT backend) by conforming to the existing protocol and registering the type in the container.
+  </Accordion>
+  <Accordion title="Dependency injection via DIContainer">
+    `App/DIContainer.swift` is the single source of truth for all production service instances. Nothing creates its own dependencies; everything receives them through the container. `DIContainer+Agent.swift` extends it for agent-specific services without cluttering the core file.
+  </Accordion>
+  <Accordion title="Swift actors for concurrency safety">
+    Long-running shared state — including `AgentLoop`, `AgentToolRegistry`, `AgentSkillRegistry`, and `MCPRegistry` — is implemented as Swift actors. This ensures that concurrent access from multiple async contexts is safe without manual locking.
+  </Accordion>
+  <Accordion title="Extension files for focused functionality">
+    When a type needs significant additional behavior in a distinct area, the code lives in a separate `+Extension` file rather than growing a single large file. `WorkflowController+Agent.swift` is the canonical example — it adds agent mode without touching `WorkflowController.swift` itself.
+  </Accordion>
+  <Accordion title="Data storage at a glance">
+    | Store | Backend | Location |
+    |---|---|---|
+    | History records | SQLite (WAL) | `~/Library/Application Support/Typeflux/history.sqlite` |
+    | Audio files | Filesystem | `~/Library/Application Support/Typeflux/audio/` |
+    | Settings | UserDefaults | `com.typeflux.plist` |
+    | Vocabulary | UserDefaults | `com.typeflux.plist` |
+    | Usage stats | UserDefaults | `com.typeflux.plist` |
+    | App state | In-memory | Runtime only |
+    | Error logs | In-memory (max 100) | Runtime only |
+  </Accordion>
+</AccordionGroup>

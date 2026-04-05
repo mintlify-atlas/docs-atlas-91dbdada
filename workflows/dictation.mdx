@@ -1,0 +1,85 @@
+---
+title: "Dictation"
+description: "Insert transcribed speech at your cursor position in any app"
+---
+
+Dictation is Typeflux's core workflow. Press a hotkey, speak naturally, release — and the transcribed text appears at your cursor in whatever app has focus. The result is also copied to the clipboard automatically.
+
+## How it works
+
+When you activate dictation, Typeflux:
+
+1. Starts recording from your microphone
+2. Shows a floating status overlay with a live audio level indicator
+3. Streams transcription output to the overlay as speech is recognized (when supported by your provider)
+4. Inserts the final text at your cursor in the active app
+5. Copies the result to the system clipboard as a fallback
+
+## Hold-to-talk workflow
+
+The default interaction is hold-to-talk: the hotkey acts like a push-to-talk button.
+
+<Steps>
+  <Step title="Position your cursor">
+    Click into the app and field where you want text to appear.
+  </Step>
+  <Step title="Press and hold the activation hotkey">
+    The default hotkey is **Fn**. The recording overlay appears and audio capture begins immediately.
+  </Step>
+  <Step title="Speak naturally">
+    Talk at a normal pace. The overlay shows your audio level and, if your provider supports streaming, text begins appearing as you speak.
+  </Step>
+  <Step title="Release the hotkey">
+    Recording stops. Typeflux transcribes the audio and injects the text at your cursor.
+  </Step>
+</Steps>
+
+<Tip>
+  Keep the hotkey held until you have fully finished speaking. Releasing early cuts off the recording.
+</Tip>
+
+## Tap-to-lock mode
+
+If you release the activation hotkey within **0.22 seconds** of pressing it, Typeflux treats the press as a tap and switches to locked recording mode instead of stopping.
+
+In locked mode:
+
+- Recording continues without you holding anything
+- The overlay shows a locked-recording indicator
+- Press the activation hotkey a second time (or click Confirm in the overlay) to finish and submit
+
+This is useful for longer dictation sessions where holding a key is inconvenient.
+
+## Streaming transcription preview
+
+When your speech-to-text provider supports incremental output (such as Apple Speech or Alibaba Cloud realtime ASR), text appears in the overlay as you speak rather than only at the end. This gives you immediate feedback that recording is working and speech is being recognized.
+
+Providers that return a single final transcript — such as Whisper API — show a processing indicator instead.
+
+## Audio validation
+
+Typeflux checks the recorded audio before sending it for transcription:
+
+- **Minimum duration**: recordings shorter than **0.35 seconds** are silently discarded. The overlay shows a brief notice.
+- **Silence detection**: if the audio contains no audible signal, the recording is skipped and a notice is shown.
+
+Both checks prevent unnecessary API calls and empty transcription results.
+
+## Clipboard fallback
+
+After every successful transcription, the result is written to the system clipboard — regardless of whether text injection succeeded. If Typeflux cannot inject text into the active app (for example, in a non-editable target), the text is still on your clipboard and ready to paste manually.
+
+<Note>
+  Text injection requires the Accessibility permission. If you have not granted it, Typeflux will fall back to clipboard-only for every session.
+</Note>
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Hotkeys" icon="keyboard" href="/workflows/hotkeys">
+    Configure the activation hotkey and tap-to-lock behavior.
+  </Card>
+  <Card title="Speech-to-text providers" icon="microphone" href="/providers/speech-to-text">
+    Choose between local and remote transcription backends.
+  </Card>
+</CardGroup>

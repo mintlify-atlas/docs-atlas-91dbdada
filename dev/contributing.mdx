@@ -1,0 +1,155 @@
+---
+title: "Contributing"
+description: "How to contribute to Typeflux"
+---
+
+Typeflux is open source under the GNU Affero General Public License v3.0 (AGPL-3.0). Contributions must be compatible with that license. Modified or derivative versions — including those used over a network — must provide their source under the same AGPL-compatible terms.
+
+## Welcome areas
+
+Good places to start contributing:
+
+- **STT providers** — add a new speech-to-text backend by conforming to the `Transcriber` protocol
+- **LLM backends** — add a new provider by conforming to `LLMService` and registering it in `LLMRouter`
+- **Overlay behavior** — improve or extend the floating status UI in `Overlay/`
+- **Settings UX** — improve settings views in `Settings/` or add new preference controls
+- **Text injection** — handle edge cases in `AXTextInjector` or improve the clipboard fallback
+- **History** — add export formats, filtering, or search to `History/`
+- **Personas** — add or refine rewrite personas in `LLM/PromptCatalog.swift`
+
+## Getting started
+
+<Steps>
+  <Step title="Read the architecture overview">
+    Understand the module layout, data flow, and key design patterns before writing any code. See [Architecture](/dev/architecture).
+  </Step>
+  <Step title="Build and run the app locally">
+    ```bash
+    make dev
+    ```
+    Walk through the real interaction loop — press the hotkey, speak, and watch text appear in a focused app. This gives you a concrete baseline before making changes.
+  </Step>
+  <Step title="Pick a bounded area">
+    Choose one module to work in. The codebase is intentionally modular; most contributions touch a single layer (STT, LLM, overlay, settings, history) without requiring changes across multiple unrelated modules.
+  </Step>
+  <Step title="Write or update tests">
+    Add tests in `Tests/TypefluxTests/` for any logic, routing, parsing, or prompt behavior your change affects. Run `swift test` to confirm they pass before opening a PR.
+  </Step>
+</Steps>
+
+## Code style
+
+<AccordionGroup>
+  <Accordion title="Formatting and indentation">
+    - 4-space indentation throughout
+    - No tabs
+    - No repo-wide formatter is enforced as a pre-commit hook — keep your changes consistent with the code immediately around them
+    - Run `make format` to apply SwiftFormat and SwiftLint across the project when cleaning up a larger change
+  </Accordion>
+  <Accordion title="Naming conventions">
+    | Kind | Convention | Example |
+    |---|---|---|
+    | Types (class, struct, enum, protocol) | UpperCamelCase | `STTRouter`, `LLMRewriteRequest` |
+    | Methods and properties | lowerCamelCase | `transcribeAudio()`, `isRecording` |
+    | Enum cases | lowerCamelCase, descriptive | `.openAICompatible`, `.appleSpeech` |
+    | Files | Match the primary type name | `LLMRouter.swift`, `AXTextInjector.swift` |
+    | Extension files | `TypeName+Area.swift` | `WorkflowController+Agent.swift` |
+
+    All code and code comments must be written in English. Typeflux is an internationalized product; UI strings live in localization files under `Sources/Typeflux/Resources/`.
+  </Accordion>
+  <Accordion title="File and type organization">
+    - One top-level type per file when practical
+    - When a type needs significant additional behavior in a distinct area, put it in a `+Extension` file rather than growing a single large source file
+    - `WorkflowController+Agent.swift` is the canonical example in this codebase
+    - Prefer extending existing protocol abstractions (`Transcriber`, `LLMService`, `HistoryStore`) over adding one-off code paths
+  </Accordion>
+  <Accordion title="Dependency injection">
+    - Do not create hard-coded singletons
+    - All services receive their dependencies through `DIContainer`
+    - New services should be constructed and wired in `App/DIContainer.swift` (or `DIContainer+Agent.swift` for agent-specific services)
+    - Prefer protocol-backed types so implementations can be swapped in tests
+  </Accordion>
+</AccordionGroup>
+
+## Testing requirements
+
+<AccordionGroup>
+  <Accordion title="Coverage target">
+    The project targets 90% unit test coverage. All new and modified code that affects business logic, routing, parsing, or prompt behavior must include unit tests.
+  </Accordion>
+  <Accordion title="File naming">
+    Test files mirror production files. If you add or modify `LLMRouter.swift`, the tests belong in `LLMRouterTests.swift`. If you add a new file `MyProvider.swift`, create `MyProviderTests.swift` alongside the other test files in `Tests/TypefluxTests/`.
+  </Accordion>
+  <Accordion title="Test naming">
+    Use behavior-focused test names that describe what the test asserts, not how it does it. Good examples from the existing suite:
+
+    ```swift
+    func testCompleteRoutesToOpenAI()
+    func testFallbacksToAppleSpeechWhenConfigured()
+    func testHistoryStoreDidChangeNotificationIsPosted()
+    ```
+
+    Avoid mechanical names like `testMethod1` or `testLLMRouter`.
+  </Accordion>
+  <Accordion title="Running tests">
+    ```bash
+    # Full suite
+    swift test
+
+    # Single class
+    swift test --filter TypefluxTests.LLMRouterTests
+
+    # Single method
+    swift test --filter TypefluxTests.LLMRouterTests/testCompleteRoutesToOpenAI
+
+    # With coverage (for core workflow changes)
+    make coverage
+    ```
+
+    Run `swift test` before opening any PR. Run `make coverage` when your change touches the workflow controller, STT router, LLM router, or text injection paths.
+  </Accordion>
+  <Accordion title="Concurrency in tests">
+    Use `@Sendable` closures with the `Recorder` actor pattern for concurrency-safe test helpers. See `RequestRetryTests.swift` in `Tests/TypefluxTests/` for a reference implementation.
+  </Accordion>
+</AccordionGroup>
+
+## Commit and PR guidelines
+
+<AccordionGroup>
+  <Accordion title="Commit style">
+    Write short, imperative commit subject lines that describe what changed:
+
+    ```
+    Fix STT router fallback when Apple Speech is unavailable
+    Add vocabulary store migration for v2 schema
+    Remove unused debug print in WorkflowController
+    ```
+
+    Keep commits scoped. One logical change per commit makes review and bisection easier.
+  </Accordion>
+  <Accordion title="PR description">
+    Every PR should explain:
+
+    - **User-visible impact** — what does this change for someone using the app?
+    - **Permission or provider setup changes** — does this require a new API key, entitlement, or permission prompt?
+    - **Related issues** — link any GitHub issue the PR addresses
+    - **Screenshots** — include before/after screenshots when your change touches the onboarding flow, settings views, overlay, or menu bar UI
+  </Accordion>
+  <Accordion title="What not to commit">
+    - API keys or secret tokens
+    - Local model file paths
+    - Personal code signing identities (`DEV_CODESIGN_IDENTITY`)
+    - Files under `.build/`
+
+    If you accidentally stage any of these, remove them before opening the PR.
+  </Accordion>
+</AccordionGroup>
+
+## Design principles
+
+Keep these in mind when deciding how to implement a change:
+
+- **Keep the interaction loop fast.** Every added step between releasing the hotkey and seeing text in the focused app has a cost. Avoid blocking the main thread and prefer streaming over batch operations where providers support it.
+- **Prefer modular provider abstractions.** New STT or LLM backends should conform to the existing protocol interfaces and be registered in the router. Avoid hard-coding vendor logic in `WorkflowController` or other shared code.
+- **Preserve the fallback path.** When direct text injection via the Accessibility API fails, the app falls back to clipboard paste. Any change that touches `AXTextInjector` or the injection step of `WorkflowController` must keep this fallback intact.
+- **Support both cloud and local-first workflows.** Some users run Typeflux entirely on-device (local Whisper model, local Ollama instance). Features that require a remote API should remain optional and should not degrade the local-only experience.

@@ -1,0 +1,312 @@
+---
+title: "Agent Framework"
+description: "How the multi-step agent loop works in the ask-selection workflow"
+---
+
+The agent framework replaces the legacy two-step ask-selection flow with an iterative reasoning loop. Instead of a single forced tool call followed by a content generation pass, the loop lets the LLM decide at each step whether to call a tool, return text, or combine both — until it reaches a termination condition.
+
+## When it's active
+
+The agent framework only runs in **ask-selection** mode (the "Ask Anything" workflow). It requires both feature flags to be enabled in `SettingsStore`:
+
+```swift
+var agentFrameworkEnabled: Bool  // master switch
+var agentEnabled: Bool           // per-session override
+```
+
+When either flag is false, the workflow falls back to the legacy two-pass flow.
+
+## Legacy flow vs. agent loop
+
+<Tabs>
+  <Tab title="Legacy (two-step)">
+    1. **LLM call 1** — forced `answer_or_edit_selection` tool call to classify intent
+    2. **LLM call 2** — second call to generate the actual answer or rewrite
+
+    Fixed structure, one path, no intermediate tool calls.
+  </Tab>
+  <Tab title="Agent loop">
+    1. Build initial messages from system prompt + user prompt
+    2. LLM decides freely: return text, call a tool, or both
+    3. If a termination tool is called → stop and return the result
+    4. If a non-termination tool is called → execute it, append result, loop
+    5. Repeat up to `maxSteps` (default 10)
+
+    Flexible multi-step reasoning with external tool access.
+  </Tab>
+</Tabs>
+
+## Agent loop execution
+
+The core engine is `AgentLoop`, a Swift `actor` defined in `LLM/Agent/AgentLoop.swift`.
+
+```swift
+actor AgentLoop {
+    private let llmService: LLMMultiTurnService
+    private let toolRegistry: AgentToolRegistry
+    private let config: AgentConfig
+    private var stepMonitor: (any AgentStepMonitor)?
+
+    init(
+        llmService: LLMMultiTurnService,
+        toolRegistry: AgentToolRegistry,
+        config: AgentConfig = .default
+    )
+
+    func run(
+        messages: [AgentMessage],
+        streamHandler: ((String) -> Void)? = nil
+    ) async throws -> AgentResult
+}
+```
+
+<Steps>
+  <Step title="Build initial messages">
+    The workflow controller assembles a `[AgentMessage]` array containing a `.system` prompt (persona + tool guidance) and a `.user` message with the selected text and spoken instruction:
+
+    ```swift
+    let messages: [AgentMessage] = [
+        .system(systemPrompt),
+        .user(userPrompt),   // "Selected text:\n---\n...\n---\nUser request: ..."
+    ]
+    ```
+  </Step>
+  <Step title="LLM turn">
+    `AgentLoop` calls `llmService.complete(messages:tools:config:)`, which returns an `AgentTurn`:
+
+    ```swift
+    enum AgentTurn {
+        case text(String)
+        case toolCalls([AgentToolCall])
+        case textWithToolCalls(text: String, toolCalls: [AgentToolCall])
+    }
+    ```
+  </Step>
+  <Step title="Process the turn">
+    - `.text` — loop terminates immediately with `AgentOutcome.text`.
+    - `.toolCalls` — each tool call is checked against the registry. If it's a **termination tool**, the loop stops and returns `AgentOutcome.terminationTool`. Otherwise the tool is executed, results are appended as `.toolResult` messages, and the loop continues.
+    - `.textWithToolCalls` — the text chunk is accumulated (and sent to `streamHandler` if provided), then tool calls are processed as above.
+  </Step>
+  <Step title="Termination or next step">
+    After each non-terminating step an `AgentStep` record is appended and `stepMonitor?.agentDidCompleteStep(_:)` is called. If `stepIndex` reaches `config.maxSteps`, the loop returns `AgentOutcome.maxStepsReached`.
+  </Step>
+</Steps>
+
+### Parallel tool execution
+
+By default tools are executed sequentially. When `allowParallelToolCalls` is `true`, `AgentLoop` uses a `ThrowingTaskGroup` to run all tool calls in a step concurrently and preserves their original order in the result:
+
+```swift
+private func executeToolsParallel(toolCalls: [AgentToolCall]) async throws -> [AgentToolResult] {
+    try await withThrowingTaskGroup(of: (Int, AgentToolResult).self) { group in
+        for (index, toolCall) in toolCalls.enumerated() {
+            group.addTask {
+                let result = try await self.toolRegistry.execute(
+                    name: toolCall.name,
+                    arguments: toolCall.argumentsJSON,
+                    toolCallId: toolCall.id
+                )
+                return (index, result)
+            }
+        }
+        var indexed: [(Int, AgentToolResult)] = []
+        for try await pair in group { indexed.append(pair) }
+        return indexed.sorted { $0.0 < $1.0 }.map(\.1)
+    }
+}
+```
+
+## AgentConfig
+
+`AgentConfig` (`LLM/Agent/AgentConfig.swift`) controls the loop's runtime behaviour:
+
+```swift
+struct AgentConfig {
+    let maxSteps: Int               // default: 10
+    let allowParallelToolCalls: Bool // default: false
+    let temperature: Double?        // nil = use provider default
+    let enableStreaming: Bool        // default: false
+
+    static let `default` = AgentConfig(
+        maxSteps: 10,
+        allowParallelToolCalls: false,
+        temperature: nil,
+        enableStreaming: false
+    )
+}
+```
+
+## AgentResult and outcome types
+
+`AgentResult` (`LLM/Agent/AgentResult.swift`) wraps the final state of a completed loop run:
+
+```swift
+struct AgentResult {
+    let outcome: AgentOutcome
+    let steps: [AgentStep]
+    let totalDurationMs: Int64
+    let totalTokenUsage: LLMTokenUsage?
+}
+```
+
+The `outcome` property is one of four cases:
+
+<AccordionGroup>
+  <Accordion title=".text(String)">
+    The LLM returned a plain-text response without calling any tool. `AgentResult.answerText` extracts this value directly.
+  </Accordion>
+  <Accordion title=".terminationTool(name:argumentsJSON:)">
+    A termination tool was called. The `name` identifies which tool (`answer_text` or `edit_text`). `AgentResult.answerText` and `AgentResult.editedText` parse the respective JSON fields from `argumentsJSON`.
+  </Accordion>
+  <Accordion title=".maxStepsReached">
+    The loop exhausted `config.maxSteps` without hitting a termination condition. `WorkflowController` converts this to `AgentError.maxStepsExceeded`.
+  </Accordion>
+  <Accordion title=".error(Error)">
+    An unrecoverable error occurred during execution — LLM connection failure, tool not found, or invalid state.
+  </Accordion>
+</AccordionGroup>
+
+## Message types
+
+`AgentMessage` (`LLM/Agent/AgentMessage.swift`) is a tagged enum representing the four roles in a multi-turn conversation:
+
+```swift
+enum AgentMessage: Equatable {
+    case system(String)
+    case user(String)
+    case assistant(AgentAssistantMessage)   // text + optional tool calls
+    case toolResult(AgentToolResult)        // tool call output
+}
+
+struct AgentToolCall: Equatable, Codable {
+    let id: String           // unique ID ties call to result
+    let name: String
+    let argumentsJSON: String
+}
+
+struct AgentToolResult: Equatable, Codable {
+    let toolCallId: String
+    let content: String      // text or JSON string
+    let isError: Bool
+}
+```
+
+## Tool registry
+
+`AgentToolRegistry` (`LLM/Agent/AgentToolRegistry.swift`) is an `actor` that holds all registered tools and tracks which ones are termination tools:
+
+```swift
+actor AgentToolRegistry {
+    func register(_ tool: any AgentTool)
+    func registerAll(_ tools: [any AgentTool])
+    func unregister(name: String)
+
+    func execute(name: String, arguments: String, toolCallId: String) async throws -> AgentToolResult
+    func isTerminationTool(name: String) -> Bool
+    func hasTool(name: String) -> Bool
+
+    var definitions: [LLMAgentTool] { get }
+}
+```
+
+Any tool that conforms to `TerminationTool` is automatically recorded in the `terminationToolNames` set when registered. The registry returns an error `AgentToolResult` (with `isError: true`) on execution failure rather than throwing, so a single bad tool call doesn't abort the whole loop.
+
+## Built-in tools
+
+Three tools ship with the framework. All are registered in `WorkflowController.runAskAgent` before the loop starts.
+
+<CardGroup cols={3}>
+  <Card title="answer_text" icon="message">
+    **Termination tool.** Presents a final answer to the user in the floating panel. Required argument: `answer` (string). Optional: `format` (`"markdown"` | `"plain"`).
+  </Card>
+  <Card title="edit_text" icon="pencil">
+    **Termination tool.** Replaces the user's selected text with new content. Required argument: `replacement` (string).
+  </Card>
+  <Card title="get_clipboard" icon="clipboard">
+    **Intermediate tool.** Reads the current system clipboard. Takes no arguments. Returns `{"content": "..."}` or `{"error": "..."}` if the clipboard is empty.
+  </Card>
+</CardGroup>
+
+The `AgentTool` protocol (`LLM/Agent/AgentTool.swift`) is straightforward to implement:
+
+```swift
+protocol AgentTool: Sendable {
+    var definition: LLMAgentTool { get }
+    func execute(arguments: String) async throws -> String
+}
+
+// Mark a tool as termination-capable:
+protocol TerminationTool: AgentTool {}
+```
+
+## Agent skills
+
+`AgentSkill` (`LLM/Agent/AgentSkill.swift`) is a composable group of tools plus a system prompt supplement. Skills can be toggled individually and are merged into the agent system prompt at run time. Two built-in skills are defined in `BuiltinSkillCatalog`:
+
+```swift
+struct AgentSkill: Codable, Identifiable {
+    let id: UUID
+    var name: String
+    var description: String
+    var enabled: Bool
+    var systemPromptSupplement: String  // appended to the agent system prompt
+    var toolNames: [String]             // tools activated by this skill
+}
+```
+
+| Skill | Tools activated | Default state |
+|---|---|---|
+| `command_execution` | `shell_command` | Disabled |
+| `web_access` | `web_fetch` | Disabled |
+
+## Error types
+
+`AgentError` (`LLM/Agent/AgentError.swift`) covers every failure mode in the loop:
+
+```swift
+enum AgentError: LocalizedError, Equatable {
+    case maxStepsExceeded
+    case toolNotFound(name: String)
+    case toolExecutionFailed(name: String, reason: String)
+    case mcpConnectionFailed(serverName: String, reason: String)
+    case mcpServerNotFound(id: UUID)
+    case invalidAgentState(reason: String)
+    case llmConnectionFailed(reason: String)
+}
+```
+
+<Warning>
+  The Ollama LLM backend does not support multi-turn tool calling. Routing through Ollama when the agent framework is enabled throws `AgentError.llmConnectionFailed`.
+</Warning>
+
+## WorkflowController integration
+
+The agent is wired into the existing `WorkflowController` through an extension (`Workflow/WorkflowController+Agent.swift`) that leaves the original implementation untouched:
+
+```swift
+extension WorkflowController {
+    func runAskAgent(
+        selectedText: String?,
+        spokenInstruction: String,
+        personaPrompt: String?,
+        mcpTools: [any AgentTool] = [],
+        skillTools: [any AgentTool] = [],
+        skillPromptSupplements: [String] = []
+    ) async throws -> AskAgentResult
+}
+
+enum AskAgentResult {
+    case answer(String)   // display in floating panel
+    case edit(String)     // replace selected text
+}
+```
+
+The method builds the registry, creates the loop, attaches an `AgentJobRecorder` as the step monitor (for history logging), runs the loop, and maps `AgentResult.outcome` to `AskAgentResult`.
+
+## Extending with MCP tools
+
+MCP tools are injected via the `mcpTools` parameter of `runAskAgent`. The `MCPRegistry` actor collects all tools from connected servers and returns them as `[any AgentTool]` via `allMCPTools()`. Each tool is wrapped by `MCPToolAdapter`, which implements `AgentTool` over the MCP JSON-RPC transport.
+
+<Note>
+  See [MCP Integration](/dev/mcp-integration) for transport implementation details and [MCP Servers](/settings/mcp-servers) for user-facing server configuration.
+</Note>

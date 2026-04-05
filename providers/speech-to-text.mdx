@@ -1,0 +1,165 @@
+---
+title: "Speech-to-Text providers"
+description: "Configure which provider transcribes your voice recordings"
+---
+
+Typeflux routes every recording through a single active STT provider. You can change the provider at any time in **Settings → Speech Recognition** without restarting the app.
+
+## Apple Speech fallback
+
+Any provider can fall back to Apple Speech when a transcription fails. Enable the **Apple Speech Fallback** toggle in Settings → Speech Recognition to turn this on. When enabled:
+
+- If the active provider returns an error, Typeflux silently retries with Apple Speech.
+- If Groq is selected but no API key is configured, Apple Speech is used automatically instead of raising an error.
+
+<Note>
+  Apple Speech fallback requires the macOS Speech Recognition permission, even when Apple Speech is not your primary provider.
+</Note>
+
+## Providers
+
+<AccordionGroup>
+  <Accordion title="Free Model">
+    The Free Model provider uses a built-in model registry (`FreeSTTModelRegistry`) that can be populated with community-hosted or self-hosted OpenAI-compatible STT endpoints. The registry is extensible — concrete endpoint sources are added to `BuiltInFreeSTTModelSources.sources` in the source code.
+
+    **Settings**: requires a model name that matches a registered source. If no sources are configured in your build, requests will fail.
+
+    **Fallback**: if the request fails and Apple Speech Fallback is enabled, Typeflux retries with Apple Speech.
+
+    <Tip>
+      If Free Model shows an error, either configure the model name to match an available source, or switch to Apple Speech or a provider you have an API key for.
+    </Tip>
+  </Accordion>
+
+  <Accordion title="Apple Speech">
+    Uses the macOS `SFSpeechRecognizer` framework to transcribe audio fully on-device. No API key is required and no audio leaves your Mac.
+
+    **Settings**: none required beyond the macOS permission.
+
+    **Permission**: macOS Speech Recognition must be granted. Typeflux prompts for this on first use.
+
+    **Language**: Apple Speech uses the language set in your system locale by default. You can override this with the language hint setting in Typeflux.
+
+    **Limitation**: Apple Speech does not stream intermediate results in the same way as cloud providers. Results are delivered when recognition completes.
+  </Accordion>
+
+  <Accordion title="Whisper API">
+    Sends audio to any OpenAI-compatible `/audio/transcriptions` endpoint. Compatible with OpenAI's Whisper models, self-hosted Whisper servers, and third-party endpoints that implement the same API.
+
+    **Settings**:
+    - **Base URL** — the transcription endpoint. Defaults to `https://api.openai.com/v1/audio/transcriptions`. Leave blank to use the OpenAI default.
+    - **API Key** — your API key for the endpoint.
+    - **Model** — the Whisper model name. Suggested models depend on the endpoint:
+      - OpenAI: `gpt-4o-transcribe` (default), `gpt-4o-mini-transcribe`, `whisper-1`
+      - Groq endpoint: `whisper-large-v3-turbo`, `whisper-large-v3`
+      - xAI endpoint: `whisper-1`
+
+    **Streaming**: Typeflux requests server-sent event streaming for models that support it (all except `whisper-1`). If streaming fails, it retries with a standard non-streaming request.
+
+    **Accepted audio formats**: WAV, MP3, M4A, MP4, MPEG, MPGA, WebM. Other formats are automatically converted to WAV before upload.
+
+    **Fallback**: if the request fails and Apple Speech Fallback is enabled, Typeflux retries with Apple Speech.
+
+    <Tip>
+      A vocabulary hint is automatically included in the transcription prompt when you have active vocabulary terms configured in Settings → Vocabulary.
+    </Tip>
+  </Accordion>
+
+  <Accordion title="Groq">
+    Uses Groq's inference API for fast cloud transcription. Groq's hardware delivers significantly lower latency than standard cloud providers for Whisper-class models.
+
+    **Settings**:
+    - **API Key** — your Groq API key.
+
+    **Models used**: `whisper-large-v3-turbo` (default) and `whisper-large-v3`. Groq does not support streaming for these models, so results are delivered as a single final transcript.
+
+    **Fallback**: if the API key is missing, Typeflux falls back to Apple Speech when Apple Speech Fallback is enabled rather than raising a configuration error. If the request fails with a key configured and the fallback is enabled, Apple Speech is used.
+
+    <Warning>
+      Groq requires a valid API key to transcribe. If you select Groq without setting a key and Apple Speech Fallback is disabled, Typeflux will surface an error.
+    </Warning>
+  </Accordion>
+
+  <Accordion title="Multimodal LLM">
+    Sends the audio file to a vision-capable or audio-capable LLM (such as `gpt-4o-audio-preview`) via the chat completions endpoint. The model transcribes the audio and — because it is already an LLM — applies any active persona prompt in the same call, skipping the separate LLM rewrite step.
+
+    **Settings**:
+    - **Base URL** — the chat completions endpoint. Example: `https://api.openai.com/v1/chat/completions`.
+    - **API Key** — your API key.
+    - **Model** — a multimodal model that supports audio input. Suggested models:
+      - `gpt-4o-audio-preview`
+      - `gpt-4o-mini-audio-preview`
+      - `mimo-v2-omni`
+
+    **Persona handling**: because the multimodal LLM handles persona application internally, no second LLM call is made after transcription. This makes the overall pipeline faster when a persona is active.
+
+    **Fallback**: multimodal LLM requests are retried automatically on failure. The Apple Speech Fallback toggle does not apply to this provider.
+  </Accordion>
+
+  <Accordion title="Alibaba Cloud ASR">
+    Uses Alibaba Cloud DashScope's real-time ASR over a WebSocket connection. Audio is converted to 16 kHz mono PCM before sending. Results stream word-by-word as the model processes the audio.
+
+    **Settings**:
+    - **API Key** — your DashScope API key.
+    - **Model** — the ASR model name. Defaults to `fun-asr-realtime`. Models with names starting with `qwen` use the OpenAI Realtime-compatible protocol; all others use the FunASR DashScope protocol.
+
+    **Streaming**: both FunASR and Qwen ASR sessions stream partial results via WebSocket. The transcription overlay shows live text updates as words are recognized.
+
+    **Fallback**: if the WebSocket session fails and Apple Speech Fallback is enabled, Typeflux retries with Apple Speech.
+
+    <Note>
+      The DashScope WebSocket handshake times out after 10 seconds. Ensure your network can reach `wss://dashscope.aliyuncs.com` without proxy issues.
+    </Note>
+  </Accordion>
+
+  <Accordion title="Doubao Realtime">
+    Uses ByteDance's SeedASR streaming ASR over a WebSocket connection (`wss://openspeech.bytedance.com`). Audio is converted to 16 kHz mono PCM. Results stream utterance-by-utterance with both partial and final markers.
+
+    **Settings**:
+    - **App ID** — your Doubao application ID.
+    - **Access Token** — your Doubao access token.
+    - **Resource ID** — the SeedASR resource identifier. Defaults to `volc.seedasr.sauc.duration` if left blank.
+
+    **Pre-warming**: Doubao opens its WebSocket connection before you finish holding the hotkey. This reduces the latency between releasing the hotkey and receiving the first transcription result. The connection is reused for the next recording if credentials have not changed.
+
+    **Hot-word support**: active vocabulary terms from Settings → Vocabulary are sent as hot-word hints with every Doubao request.
+
+    **Fallback**: if the session fails and Apple Speech Fallback is enabled, Typeflux retries with Apple Speech.
+  </Accordion>
+
+  <Accordion title="Local Model">
+    Runs a downloaded speech model directly on your Mac using Apple's CoreML or MLX frameworks. No audio is sent over the network.
+
+    See [local models](/providers/local-models) for download instructions and a comparison of the available models.
+
+    **Settings**:
+    - **Model** — choose WhisperKit Small, SenseVoice Small, or Qwen3 ASR.
+    - **Download source** — Hugging Face (default) or ModelScope (recommended for users in mainland China).
+    - **Auto-setup** — when enabled, Typeflux downloads the selected model automatically on first use.
+
+    **Pre-warming**: the WhisperKit CoreML pipeline is loaded into memory before you start recording, so the first transcription call does not pay the cold-start cost. Pre-warming is skipped for SenseVoice and Qwen3 ASR.
+
+    **Fallback**: if the local model fails and Apple Speech Fallback is enabled, Typeflux retries with Apple Speech.
+  </Accordion>
+</AccordionGroup>
+
+## Language hints
+
+Several providers support a language or locale override to improve accuracy for non-English speech:
+
+- **Apple Speech**: uses the locale you specify, or your system locale by default.
+- **WhisperKit**: uses the language code configured in Typeflux's app language setting.
+- **Whisper API and Groq**: pass the language as a parameter when a language hint is set.
+
+Configure the language preference in **Settings → General**.
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Local models" icon="server" href="/providers/local-models">
+    Download and configure WhisperKit, SenseVoice, or Qwen3 ASR for fully on-device transcription.
+  </Card>
+  <Card title="LLM backends" icon="robot" href="/providers/llm-backends">
+    Configure the language model used for voice editing and ask-selection.
+  </Card>
+</CardGroup>

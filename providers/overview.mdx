@@ -1,0 +1,95 @@
+---
+title: "Providers overview"
+description: "Choose the right speech and AI backend for your workflow"
+---
+
+Typeflux uses two independent provider categories: **Speech-to-Text (STT)** for turning your voice into text, and **LLM** for rewriting, answering questions, and persona application. You can swap either provider without touching the other — for example, use a local STT model with a cloud LLM, or a cloud STT provider with a local Ollama model.
+
+## Privacy spectrum
+
+Providers range from fully on-device to fully cloud-based. The table below summarizes the tradeoffs.
+
+| Provider | Category | Requires API key | Data leaves device |
+|---|---|---|---|
+| Free Model | STT | No | Yes (configured endpoint) |
+| Apple Speech | STT | No | No |
+| Local Model (WhisperKit / SenseVoice / Qwen3) | STT | No | No |
+| Whisper API | STT | Yes | Yes |
+| Groq | STT | Yes | Yes |
+| Multimodal LLM | STT + LLM | Yes | Yes |
+| Alibaba Cloud ASR | STT | Yes | Yes |
+| Doubao Realtime | STT | Yes | Yes |
+| OpenAI-compatible | LLM | Yes | Yes |
+| Ollama | LLM | No | No |
+
+<Note>
+  Typeflux does not send data to any Typeflux servers. All traffic goes directly between your Mac and whichever provider endpoints you configure.
+</Note>
+
+## Speech-to-Text providers
+
+<CardGroup cols={2}>
+  <Card title="Free Model" icon="gift" href="/providers/speech-to-text">
+    Registry-based provider requiring no API key. Routes to configured OpenAI-compatible STT endpoints.
+  </Card>
+  <Card title="Apple Speech" icon="apple" href="/providers/speech-to-text">
+    On-device transcription using macOS Speech Recognition. Private, no key needed.
+  </Card>
+  <Card title="Local Model" icon="server" href="/providers/local-models">
+    Download WhisperKit, SenseVoice, or Qwen3 ASR. Runs entirely on your Mac, no internet needed after the initial download.
+  </Card>
+  <Card title="Whisper API" icon="microphone" href="/providers/speech-to-text">
+    OpenAI-compatible remote STT. Works with OpenAI, self-hosted Whisper, and any compatible endpoint.
+  </Card>
+  <Card title="Groq" icon="bolt" href="/providers/speech-to-text">
+    Fast cloud transcription using Groq's inference API. Requires a Groq API key.
+  </Card>
+  <Card title="Multimodal LLM" icon="eye" href="/providers/speech-to-text">
+    A vision-capable LLM transcribes audio and optionally applies persona rewriting in a single call.
+  </Card>
+  <Card title="Alibaba Cloud ASR" icon="cloud" href="/providers/speech-to-text">
+    Real-time streaming ASR via Alibaba Cloud DashScope. Requires an API key.
+  </Card>
+  <Card title="Doubao Realtime" icon="cloud" href="/providers/speech-to-text">
+    Real-time streaming ASR from ByteDance. Requires App ID and access token.
+  </Card>
+</CardGroup>
+
+## LLM backends
+
+<CardGroup cols={2}>
+  <Card title="OpenAI-compatible" icon="robot" href="/providers/llm-backends">
+    Works with OpenAI, Anthropic, Gemini, DeepSeek, Groq, and any OpenAI-compatible API. Streaming and multi-turn tool calling supported.
+  </Card>
+  <Card title="Ollama" icon="server" href="/providers/llm-backends">
+    Run a local model on your Mac via Ollama. No API key, no internet required. Typeflux can install and configure Ollama automatically.
+  </Card>
+</CardGroup>
+
+## Apple Speech fallback
+
+Every provider except Apple Speech itself supports an optional **Apple Speech fallback**. When enabled, if the selected provider returns an error, Typeflux automatically retries using Apple Speech instead of surfacing the error. Enable this in **Settings → Speech Recognition**.
+
+<Tip>
+  The fallback is especially useful during development or when testing a new provider. Enable it so a misconfigured key doesn't block your workflow.
+</Tip>
+
+## Choosing a provider
+
+<AccordionGroup>
+  <Accordion title="I want to get started immediately without any setup">
+    Use **Apple Speech** — it is always available on macOS with no API key or download. Enable it in Settings → Speech Recognition. Alternatively, use **Local Model** after a one-time download if you prefer a higher-accuracy option.
+  </Accordion>
+  <Accordion title="I need transcription to stay on my device">
+    Use **Apple Speech** or **Local Model**. Apple Speech requires the macOS Speech Recognition permission. Local models require a one-time download from Hugging Face but run fully offline afterward. See [local models](/providers/local-models) for setup.
+  </Accordion>
+  <Accordion title="I want the highest accuracy">
+    **Whisper API** with OpenAI (`gpt-4o-transcribe`) or **Groq** (`whisper-large-v3-turbo`) typically deliver the best results for English. For multilingual content, Whisper API with an explicit language hint performs well.
+  </Accordion>
+  <Accordion title="I want low latency with live transcription preview">
+    **Alibaba Cloud ASR** and **Doubao Realtime** use WebSocket streaming and deliver word-by-word results as you speak. The Whisper API with models that support streaming (all except `whisper-1`) also streams incrementally.
+  </Accordion>
+  <Accordion title="I want the LLM to run locally">
+    Use **Ollama** as your LLM backend. Install Ollama on your Mac and set the model name in Settings. Typeflux can pull the model automatically when auto-setup is enabled.
+  </Accordion>
+</AccordionGroup>

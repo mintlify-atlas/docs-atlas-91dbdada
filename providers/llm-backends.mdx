@@ -1,0 +1,116 @@
+---
+title: "LLM backends"
+description: "Configure the language model used for voice editing and ask-selection"
+---
+
+Typeflux uses a language model for three tasks:
+
+- **Voice editing** — rewriting selected text according to a spoken instruction.
+- **Ask-selection** — answering a question about selected text and showing the answer in a floating panel.
+- **Persona application** — transforming a raw transcript through a persona prompt before inserting it.
+
+The active LLM backend handles all three. Configure it in **Settings → Language Model**.
+
+<Note>
+  The Multimodal LLM STT provider is an exception: when it is your active STT provider, persona rewriting happens inside the transcription call, so no separate LLM call is made.
+</Note>
+
+## Providers
+
+<Tabs>
+  <Tab title="OpenAI-compatible">
+    The OpenAI-compatible backend works with any provider that exposes an OpenAI-style `POST /chat/completions` endpoint. This includes OpenAI, Anthropic (via its native API style), Gemini, and many third-party providers.
+
+    ### Settings
+
+    | Setting | Description |
+    |---|---|
+    | **Base URL** | The root URL of the API. Example: `https://api.openai.com/v1` |
+    | **API Key** | Your API key for the provider. |
+    | **Model** | The model name to use. |
+
+    ### Supported providers
+
+    Typeflux ships with presets for the following providers. Select one to auto-fill the base URL.
+
+    | Provider | Default base URL | API style |
+    |---|---|---|
+    | OpenAI | `https://api.openai.com/v1` | OpenAI-compatible |
+    | Anthropic | `https://api.anthropic.com/v1` | Anthropic native |
+    | Gemini | `https://generativelanguage.googleapis.com/v1beta` | Gemini native |
+    | DeepSeek | `https://api.deepseek.com` | OpenAI-compatible |
+    | Groq | `https://api.groq.com/openai/v1` | OpenAI-compatible |
+    | OpenRouter | `https://openrouter.ai/api/v1` | OpenAI-compatible |
+    | Kimi | `https://api.moonshot.cn/v1` | OpenAI-compatible |
+    | Qwen | `https://dashscope.aliyuncs.com/compatible-mode/v1` | OpenAI-compatible |
+    | Zhipu | `https://open.bigmodel.cn/api/paas/v4` | OpenAI-compatible |
+    | MiniMax | `https://api.minimax.io/v1` | OpenAI-compatible |
+    | xAI (Grok) | `https://api.x.ai/v1` | OpenAI-compatible |
+    | Xiaomi MiMo | `https://api.xiaomimimo.com/v1` | OpenAI-compatible |
+    | Custom | Any OpenAI-compatible endpoint | OpenAI-compatible |
+
+    ### Streaming
+
+    Voice editing uses server-sent event streaming (`"stream": true`) so the rewritten text appears progressively in the overlay as the model generates it. Completion calls for ask-selection and JSON-schema responses use non-streaming requests.
+
+    ### Thinking tags
+
+    Some models emit `<thinking>…</thinking>` blocks before their final answer. Typeflux strips these blocks from the output before inserting text or displaying it in a panel.
+
+    ### API key storage
+
+    API keys are stored in `UserDefaults` on your Mac. They are not synced via iCloud and do not leave your device.
+  </Tab>
+
+  <Tab title="Ollama">
+    The Ollama backend connects to a locally running Ollama server. No API key is required and no data leaves your Mac.
+
+    ### Settings
+
+    | Setting | Description |
+    |---|---|
+    | **Base URL** | The Ollama server address. Defaults to `http://127.0.0.1:11434` if left blank. |
+    | **Model** | The Ollama model name, e.g. `llama3.2` or `mistral`. |
+    | **Auto-setup** | When enabled, Typeflux installs Ollama and pulls the model automatically. |
+
+    ### Auto-setup
+
+    When auto-setup is enabled, Typeflux checks for Ollama at startup and on each request:
+
+    1. Looks for an existing `ollama` binary at `/opt/homebrew/bin/ollama`, `/usr/local/bin/ollama`, and `/usr/bin/ollama`.
+    2. If not found and auto-setup is on, installs Ollama using the official install script.
+    3. Starts the Ollama server if it is not running.
+    4. Pulls the configured model if it is not already downloaded locally.
+
+    <Warning>
+      Auto-setup installs Ollama globally on your Mac by running `curl -fsSL https://ollama.com/install.sh | sh`. Review the script before enabling this option if you prefer manual control over your system.
+    </Warning>
+
+    ### Streaming
+
+    Voice editing uses Ollama's streaming chat API (`"stream": true`). The rewritten text appears progressively in the overlay as the model generates each token.
+
+    ### Limitation: agent framework
+
+    The agent framework (multi-turn tool calling) requires the OpenAI-compatible provider. Ollama does not support the multi-turn tool calling protocol used by Typeflux's agent loop. All other LLM tasks — voice editing, ask-selection, and persona application — work fully with Ollama.
+  </Tab>
+</Tabs>
+
+## Timeout behavior
+
+If the LLM does not return a response within **30 seconds** after transcription completes, Typeflux uses the raw transcript as the output instead of waiting indefinitely. This prevents the workflow from stalling if the LLM endpoint is unreachable or slow.
+
+## Free Model
+
+A built-in free LLM option is available through `FreeLLMModelRegistry`. It resolves a model name to a pre-configured endpoint using the `BuiltInFreeLLMModelSources` registry. The registry is extensible — concrete sources are added to `BuiltInFreeLLMModelSources.sources` in the source code. Available model names are shown in the model picker when sources are configured.
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Speech-to-Text providers" icon="microphone" href="/providers/speech-to-text">
+    Configure which provider transcribes your voice recordings.
+  </Card>
+  <Card title="Voice editing" icon="pen-to-square" href="/workflows/voice-editing">
+    Learn how the LLM is used during a voice editing session.
+  </Card>
+</CardGroup>
